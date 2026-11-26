@@ -1,6 +1,14 @@
 # Mr. Pediker – web
 
-Nový web pro [mrpediker.cz](https://mrpediker.cz) – Pedikúra by Míra, Hradec Králové. Barbershop styl.
+Web pro [mrpediker.cz](https://mrpediker.cz) – Pedikúra by Míra, Hradec Králové. Barbershop styl, optimalizováno pro telefony.
 
-- `index.html` – celý web (statický, bez závislostí, písma z Google Fonts)
-- `brand/` – logo (emblém, wordmark, monogram)
+- `index.html` – úvod, služby, ceník, o mně, galerie, **online rezervace**, kontakt
+- `style.css`, `app.js` – vzhled, mobilní menu, rezervační formulář, cookie lišta
+- `obchodni-podminky.html`, `odstoupeni-od-smlouvy.html`, `ochrana-osobnich-udaju.html`, `cookies.html`
+- `img/` – fotky, `brand/` – logo
+
+## Rezervace
+Klient vybere ošetření, den, čas a vyplní kontakt; rezervace se odešle jako předvyplněná SMS nebo e-mail na 737 307 321 / mrpediker@seznam.cz. Nabízené časy a počet dní dopředu se mění v `app.js` (`TIMES`, `DAYS_AHEAD`). Obsazenost se nekontroluje – termín platí po potvrzení.
+
+## Doplnit
+V obchodních podmínkách a ochraně osobních údajů jsou v [hranatých závorkách] údaje k doplnění (storno lhůta a poplatek, platba kartou, doba uchování, název rezervačního systému).
