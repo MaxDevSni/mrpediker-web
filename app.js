@@ -27,7 +27,18 @@
   function applyConsent(c) {
     // Místo pro budoucí analytiku / marketing – načítat jen když c.analytics / c.marketing === true.
     document.documentElement.dataset.analytics = c && c.analytics ? '1' : '0';
+    if (c && c.marketing) loadMap();
   }
+  function loadMap() {
+    var m = document.getElementById('map');
+    if (!m || m.querySelector('iframe')) return;
+    var f = document.createElement('iframe');
+    f.src = m.getAttribute('data-src'); f.loading = 'lazy'; f.title = 'Mapa – Pospíšilova 311/10, Hradec Králové';
+    f.referrerPolicy = 'no-referrer-when-downgrade'; f.allowFullscreen = true;
+    m.appendChild(f);
+  }
+  var mapBtn = document.getElementById('map-load');
+  if (mapBtn) mapBtn.addEventListener('click', loadMap);
   function cookieBar(showPrefs) {
     var old = document.querySelector('.cookie'); if (old) old.remove();
     var c = store.get() || { analytics: false, marketing: false };
@@ -35,19 +46,19 @@
     el.className = 'cookie' + (showPrefs ? ' show-prefs' : '');
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-labelledby', 'ck-t');
-    el.innerHTML =
+    el.innerHTML = '<div class="in"><div>' +
       '<h2 id="ck-t">Cookies</h2>' +
-      '<p>Používám jen nezbytné technické úložiště. Analytické a marketingové cookies zapnu jedině s vaším souhlasem. <a href="cookies.html">Více informací</a></p>' +
+      '<p>Používám jen nezbytné technické úložiště. Analytické a marketingové cookies zapnu jedině s vaším souhlasem. <a href="cookies.html">Více informací</a></p></div>' +
       '<div class="prefs">' +
       '<label><input type="checkbox" checked disabled> <span><b>Nezbytné</b> – vždy aktivní, nutné pro fungování webu.</span></label>' +
       '<label><input type="checkbox" id="ck-a"' + (c.analytics ? ' checked' : '') + '> <span><b>Analytické</b> – anonymní statistika návštěvnosti.</span></label>' +
-      '<label><input type="checkbox" id="ck-m"' + (c.marketing ? ' checked' : '') + '> <span><b>Marketingové</b> – měření reklam na sociálních sítích.</span></label>' +
+      '<label><input type="checkbox" id="ck-m"' + (c.marketing ? ' checked' : '') + '> <span><b>Marketingové a externí obsah</b> – mapa Google, měření reklam na sociálních sítích.</span></label>' +
       '</div>' +
       '<div class="acts">' +
       '<button type="button" class="btn btn-line" data-a="none">Jen nezbytné</button>' +
       '<button type="button" class="btn btn-red" data-a="all">Přijmout vše</button>' +
       '<button type="button" class="btn btn-line wide" data-a="prefs">' + (showPrefs ? 'Uložit výběr' : 'Nastavení') + '</button>' +
-      '</div>';
+      '</div></div>';
     document.body.appendChild(el);
     el.addEventListener('click', function (e) {
       var b = e.target.closest('button'); if (!b) return;
