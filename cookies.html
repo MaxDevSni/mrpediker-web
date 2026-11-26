@@ -34,12 +34,12 @@
 <table>
 <thead><tr><th>Kategorie</th><th>K čemu slouží</th><th>Souhlas</th></tr></thead>
 <tbody>
-<tr><td><strong>Nezbytné</strong></td><td>Zapamatování vaší volby v cookie liště (záznam <code>mp_cookie_consent</code> v místním úložišti, 12 měsíců). Technické cookies rezervačního systému nutné k dokončení rezervace.</td><td>není potřeba</td></tr>
+<tr><td><strong>Nezbytné</strong></td><td>Zapamatování vaší volby v cookie liště (záznam <code>mp_cookie_consent</code> v místním úložišti, 12 měsíců). V administraci záznam o přihlášení (<code>mp_sb_session</code>), jen pro provozovatele.</td><td>není potřeba</td></tr>
 <tr><td><strong>Analytické</strong></td><td>Anonymní statistika návštěvnosti, abych věděl, co na webu funguje. <em>Momentálně nepoužívám – zapnou se jen s vaším souhlasem, pokud je v budoucnu nasadím.</em></td><td>jen se souhlasem</td></tr>
 <tr><td><strong>Marketingové a externí obsah</strong></td><td>Vložená mapa Google Maps (Google může po jejím zobrazení ukládat cookies) a v budoucnu měření reklam na sociálních sítích. Mapa se načte jen se souhlasem nebo po kliknutí na „Zobrazit mapu“.</td><td>jen se souhlasem</td></tr>
 </tbody>
 </table>
-<p>Rezervační systém <strong>[název]</strong> může po otevření ukládat vlastní cookies; řídí se jeho zásadami.</p>
+<p>Online rezervace cookies neukládá; údaje z formuláře se odešlou přímo do databáze rezervací.</p>
 
 <h2>Jak souhlas změnit</h2>
 <p>Svou volbu můžete kdykoli změnit tlačítkem níže nebo odkazem „Nastavení cookies“ v patičce webu. Cookies můžete také smazat nebo zablokovat v nastavení prohlížeče.</p>
@@ -67,6 +67,8 @@
 <a class="r" href="index.html#rezervace">Rezervovat</a>
 </div>
 
+<script src="config.js" defer></script>
+<script src="db.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

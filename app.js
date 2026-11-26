@@ -85,14 +85,14 @@
   if (!form) return;
 
   var SERVICES = [
-    { id: 'mokra', name: 'Mokrá pedikúra', time: '50–70 min', price: '690 Kč' },
-    { id: 'pristrojova', name: 'Přístrojová pedikúra', time: '50–70 min', price: '790 Kč' },
-    { id: 'kombinovana', name: 'Kombinovaná pedikúra', time: '50–70 min', price: '890 Kč' },
-    { id: 'spa', name: 'SPA pedikúra', time: '60–70 min', price: '1 290 Kč' },
-    { id: 'rovnatko', name: 'Aplikace nehtového rovnátka', time: '20–40 min', price: '650 Kč' },
-    { id: 'nehty', name: 'Stříhání a zapilování nehtů', time: '', price: '250 Kč' },
-    { id: 'zarostly', name: 'Ošetření zarostlého nehtu', time: '', price: '250 Kč' },
-    { id: 'masaz', name: 'Masáž nohou', time: '15–20 min', price: '290 Kč' }
+    { id: 'mokra', name: 'Mokrá pedikúra', time: '50–70 min', price: '690 Kč', dur: 60 },
+    { id: 'pristrojova', name: 'Přístrojová pedikúra', time: '50–70 min', price: '790 Kč', dur: 60 },
+    { id: 'kombinovana', name: 'Kombinovaná pedikúra', time: '50–70 min', price: '890 Kč', dur: 60 },
+    { id: 'spa', name: 'SPA pedikúra', time: '60–70 min', price: '1 290 Kč', dur: 70 },
+    { id: 'rovnatko', name: 'Aplikace nehtového rovnátka', time: '20–40 min', price: '650 Kč', dur: 30 },
+    { id: 'nehty', name: 'Stříhání a zapilování nehtů', time: '', price: '250 Kč', dur: 20 },
+    { id: 'zarostly', name: 'Ošetření zarostlého nehtu', time: '', price: '250 Kč', dur: 20 },
+    { id: 'masaz', name: 'Masáž nohou', time: '15–20 min', price: '290 Kč', dur: 20 }
   ];
   // Nabízené časy – upravte podle skutečné pracovní doby.
   var TIMES = ['8:00', '9:30', '11:00', '12:30', '14:00', '15:30', '17:00', '18:30'];
@@ -113,7 +113,7 @@
     var b = document.createElement('button');
     b.type = 'button'; b.className = 'opt'; b.setAttribute('aria-pressed', 'false'); b.dataset.id = s.id;
     b.innerHTML = '<span>' + esc(s.name) + (s.time ? '<small>' + esc(s.time) + '</small>' : '') + '</span><b>' + esc(s.price) + '</b>';
-    b.addEventListener('click', function () { state.service = s; press(svcBox.querySelectorAll('.opt').length ? [].slice.call(svcBox.querySelectorAll('.opt')) : [], b); err.textContent = ''; setTimeout(function () { go(2); }, 160); });
+    b.addEventListener('click', function () { state.service = s; if (avail) { drawDays(); drawTimes(); } press(svcBox.querySelectorAll('.opt').length ? [].slice.call(svcBox.querySelectorAll('.opt')) : [], b); err.textContent = ''; setTimeout(function () { go(2); }, 160); });
     svcBox.appendChild(b);
   });
 
@@ -139,6 +139,58 @@
     b.addEventListener('click', function () { state.time = t; press([].slice.call(timeBox.children), b); err.textContent = ''; });
     timeBox.appendChild(b);
   });
+
+  /* --- Online volné termíny ze Supabase --- */
+  var CLOUD = !!(window.MPDB && MPDB.enabled), avail = null;
+  function isoD(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function m2(t) { var p = t.split(':'); return +p[0] * 60 + +p[1]; }
+  function hm2(m) { return Math.floor(m / 60) + ':' + ('0' + (m % 60)).slice(-2); }
+  function freeTimes(ds) {
+    if (!avail) return TIMES;
+    var sh = avail.shifts[ds]; if (!sh || !sh.is_on) return [];
+    var dur = (state.service && state.service.dur) || 60, out = [], busy = avail.busy.filter(function (b) { return b.date === ds; });
+    for (var t = m2(sh.t_from); t + dur <= m2(sh.t_to); t += 30) {
+      var clash = busy.some(function (b) { var s = m2(b.time); return t < s + b.dur && s < t + dur; });
+      if (!clash) out.push(hm2(t));
+    }
+    return out;
+  }
+  function drawTimes() {
+    var list = state.day ? freeTimes(isoD(state.day)) : (avail ? [] : TIMES);
+    timeBox.innerHTML = '';
+    if (avail && state.day && !list.length) { timeBox.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">V tento den už není volno – zkuste jiný den.</p>'; return; }
+    if (avail && !state.day) { timeBox.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">Nejdřív vyberte den.</p>'; return; }
+    list.forEach(function (t) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'time'; b.textContent = t; b.setAttribute('aria-pressed', state.time === t ? 'true' : 'false');
+      b.addEventListener('click', function () { state.time = t; press([].slice.call(timeBox.children), b); err.textContent = ''; });
+      timeBox.appendChild(b);
+    });
+    if (state.time && list.indexOf(state.time) === -1) state.time = null;
+  }
+  function drawDays() {
+    if (!avail) return;
+    [].forEach.call(dayBox.children, function (b, i) {
+      var ds = isoD(addD(i + 1)), sh = avail.shifts[ds], open = sh && sh.is_on && freeTimes(ds).length > 0;
+      b.disabled = !open; b.style.opacity = open ? '' : '.35';
+      if (!open && state.day && isoD(state.day) === ds) { state.day = null; b.setAttribute('aria-pressed', 'false'); }
+    });
+  }
+  function addD(n) { var d = new Date(today); d.setDate(today.getDate() + n); return d; }
+  if (CLOUD) {
+    var from = isoD(addD(1)), to = isoD(addD(DAYS_AHEAD));
+    Promise.all([MPDB.selectPublic('shifts', 'select=*&date=gte.' + from + '&date=lte.' + to), MPDB.rpc('busy_slots', { d_from: from, d_to: to }, true)])
+      .then(function (r) {
+        var shifts = {}; r[0].forEach(function (x) { shifts[x.date] = { is_on: x.is_on, t_from: x.t_from.slice(0, 5), t_to: x.t_to.slice(0, 5) }; });
+        if (!Object.keys(shifts).some(function (k) { return shifts[k].is_on; })) return; // směny nevyplněné → klasická žádost přes SMS
+        avail = { shifts: shifts, busy: (r[1] || []).map(function (b) { return { date: b.date, time: b.time.slice(0, 5), dur: b.dur }; }) };
+        form.classList.add('online');
+        drawDays(); drawTimes();
+        $('#bk-online').hidden = false; $('#bk-offline').hidden = true;
+        form.querySelector('[data-step="2"] .hint').textContent = 'Zobrazuji jen volné termíny. Rezervace se uloží hned a potvrdím ji SMS.';
+      }).catch(function () { /* databáze nedostupná → klasický režim */ });
+  }
+  dayBox.addEventListener('click', function () { if (avail) setTimeout(drawTimes, 0); });
 
   function fmtDay(d) { return DN[d.getDay()] + ' ' + d.getDate() + '. ' + MN[d.getMonth()] + ' ' + d.getFullYear(); }
   function val(id) { return ($('#' + id).value || '').trim(); }
@@ -199,6 +251,21 @@
     go(state.step + 1);
   });
   $('#bk-back').addEventListener('click', function () { go(state.step - 1); });
+  var onlineBtn = $('#send-online');
+  if (onlineBtn) onlineBtn.addEventListener('click', function () {
+    var m = validate(4); if (m) { err.textContent = m; return; }
+    onlineBtn.disabled = true; onlineBtn.textContent = 'Odesílám…';
+    MPDB.rpc('book', { p_name: val('f-name'), p_tel: val('f-tel'), p_email: val('f-mail'), p_service: state.service.name,
+      p_price: parseInt(state.service.price.replace(/\D/g, ''), 10) || 0, p_date: isoD(state.day), p_time: state.time, p_dur: state.service.dur || 60, p_note: val('f-note') }, true)
+      .then(function () {
+        avail.busy.push({ date: isoD(state.day), time: state.time, dur: state.service.dur || 60 });
+        $('#bk-done-text').textContent = 'Rezervace na ' + fmtDay(state.day) + ' v ' + state.time + ' je uložená. Potvrdím ji SMS nebo telefonem co nejdřív.';
+        go(5);
+      })
+      .catch(function (e) { err.textContent = (e.message || 'Rezervaci se nepodařilo odeslat') + '. Zkuste jiný čas, nebo pošlete SMS.'; $('#bk-offline').hidden = false; })
+      .then(function () { onlineBtn.disabled = false; onlineBtn.textContent = 'Rezervovat termín'; });
+  });
+
   ['#send-sms', '#send-mail'].forEach(function (id) {
     $(id).addEventListener('click', function (e) {
       var m = validate(4); if (m) { e.preventDefault(); err.textContent = m; return; }
@@ -209,6 +276,7 @@
     state.service = state.day = state.time = null;
     form.reset();
     form.querySelectorAll('[aria-pressed]').forEach(function (b) { b.setAttribute('aria-pressed', 'false'); });
+    if (avail) { drawDays(); drawTimes(); }
     go(1);
   });
   form.addEventListener('submit', function (e) { e.preventDefault(); });

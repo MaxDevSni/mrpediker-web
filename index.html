@@ -202,17 +202,22 @@
 <div class="summary"><dl id="bk-sum"></dl></div>
 <label class="check"><input type="checkbox" id="c-terms"> <span>Souhlasím s <a href="obchodni-podminky.html" target="_blank">obchodními podmínkami</a> a beru na vědomí <a href="ochrana-osobnich-udaju.html" target="_blank">zpracování osobních údajů</a>.</span></label>
 <label class="check"><input type="checkbox" id="c-start"> <span>Výslovně žádám o poskytnutí služby ve zvoleném termínu i před uplynutím 14denní lhůty pro odstoupení od smlouvy a beru na vědomí, že po úplném poskytnutí služby právo na odstoupení zaniká.</span></label>
+<div class="send" id="bk-online" hidden>
+<button class="btn btn-red btn-block" id="send-online" type="button">Rezervovat termín</button>
+</div>
+<div id="bk-offline">
 <p class="hint">Rezervaci odešlete jedním klepnutím – otevře se vám předvyplněná zpráva.</p>
 <div class="send">
 <a class="btn btn-red btn-block" id="send-sms" href="#">Odeslat SMS</a>
 <a class="btn btn-line btn-block" id="send-mail" href="#">Odeslat e-mailem</a>
+</div>
 </div>
 </fieldset>
 
 <div class="bk-pane bk-done" data-step="5" hidden>
 <p class="kicker">Hotovo</p>
 <p class="big">Díky!</p>
-<p class="hint">Pokud se zpráva odeslala, ozvu se vám s potvrzením termínu co nejdřív. Termín je platný až po mém potvrzení.</p>
+<p class="hint" id="bk-done-text">Pokud se zpráva odeslala, ozvu se vám s potvrzením termínu co nejdřív. Termín je platný až po mém potvrzení.</p>
 <button class="btn btn-line" type="button" id="bk-again">Nová rezervace</button>
 </div>
 
@@ -289,6 +294,8 @@
 <a class="r" href="#rezervace">Rezervovat</a>
 </div>
 
+<script src="config.js" defer></script>
+<script src="db.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

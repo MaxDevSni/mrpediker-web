@@ -26,8 +26,64 @@
       defFrom: '08:00', defTo: '19:00', workDays: [1, 2, 3, 4, 5], services: DEFAULT_SERVICES, pwHash: '', user: 'admin'
     }, db.settings || {});
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Nepodařilo se uložit – plné úložiště?'); } }
-  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Nepodařilo se uložit – plné úložiště?'); } if (CLOUD) cloudSync(); }
+
+  /* ---------- Cloud (Supabase) ---------- */
+  var CLOUD = !!(window.MPDB && MPDB.enabled), last = null, syncing = false, again = false;
+  var t5 = function (t) { return (t || '').slice(0, 5); };
+  function rowsOf(d) {
+    var r = {};
+    r.clients = d.clients.map(function (c) { return { id: c.id, name: c.name, tel: c.tel || null, email: c.email || null, addr: c.addr || null, note: c.note || null, created_at: c.created ? c.created + 'T12:00:00Z' : new Date().toISOString() }; });
+    r.appointments = d.appts.map(function (a) { return { id: a.id, client_id: a.clientId || null, service: a.service, price: +a.price || 0, date: a.date, time: a.time, dur: +a.dur || 60, status: a.status, note: a.note || null, source: a.source || 'admin' }; });
+    r.shifts = Object.keys(d.shifts).map(function (k) { var x = d.shifts[k]; return { date: k, is_on: !!x.on, t_from: x.from, t_to: x.to }; });
+    r.invoices = d.invoices.map(function (i) { return { id: i.id, no: i.no, date: i.date, due: i.due, client_id: i.clientId || null, client_addr: i.clientAddr || null, items: i.items, pay: i.pay, appt_ids: i.apptIds || [] }; });
+    var st = Object.assign({}, d.settings); delete st.pwHash; delete st.user;
+    r.settings = [{ id: 1, data: st }];
+    return r;
+  }
+  var KEYCOL = { clients: 'id', appointments: 'id', shifts: 'date', invoices: 'id', settings: 'id' };
+  var ORDER = ['settings', 'clients', 'shifts', 'appointments', 'invoices'];
+  function snap(r) { var o = {}; ORDER.forEach(function (t) { o[t] = {}; r[t].forEach(function (x) { o[t][x[KEYCOL[t]]] = JSON.stringify(x); }); }); return o; }
+  function cloudSync() {
+    if (!last) return;
+    if (syncing) { again = true; return; }
+    syncing = true;
+    var now = snap(rowsOf(db)), chain = Promise.resolve();
+    ORDER.forEach(function (t) {
+      var up = [], del = [];
+      Object.keys(now[t]).forEach(function (k) { if (now[t][k] !== last[t][k]) up.push(JSON.parse(now[t][k])); });
+      Object.keys(last[t]).forEach(function (k) { if (!(k in now[t])) del.push(k); });
+      chain = chain.then(function () { return MPDB.upsert(t, up, KEYCOL[t]); });
+      if (del.length) delQueue.push([t, del]);
+    });
+    // mazání v opačném pořadí (faktury → termíny → … )
+    chain = chain.then(function () { var q = delQueue.slice().reverse(); delQueue = []; return q.reduce(function (p, d) { return p.then(function () { return MPDB.remove(d[0], KEYCOL[d[0]], d[1]); }); }, Promise.resolve()); });
+    chain.then(function () { last = now; setSync('ok'); })
+      .catch(function (e) { setSync('err'); if (e.status === 401) { sessionStorage.removeItem(SESSION); render(); } toast('Neuloženo do databáze: ' + e.message); })
+      .then(function () { syncing = false; if (again) { again = false; cloudSync(); } });
+  }
+  var delQueue = [];
+  function setSync(st) { var el = document.getElementById('sync'); if (el) { el.textContent = st === 'ok' ? '● uloženo' : '● chyba ukládání'; el.style.color = st === 'ok' ? 'var(--mut)' : '#E7C27D'; } }
+  function cloudLoad() {
+    return Promise.all([MPDB.select('clients'), MPDB.select('appointments'), MPDB.select('shifts'), MPDB.select('invoices'), MPDB.select('settings')]).then(function (res) {
+      var pw = db.settings.pwHash, us = db.settings.user;
+      db.clients = res[0].map(function (c) { return { id: c.id, name: c.name, tel: c.tel || '', email: c.email || '', addr: c.addr || '', note: c.note || '', created: (c.created_at || '').slice(0, 10) }; });
+      db.appts = res[1].map(function (a) { return { id: a.id, clientId: a.client_id, service: a.service, price: a.price, date: a.date, time: t5(a.time), dur: a.dur, status: a.status, note: a.note || '', source: a.source }; });
+      db.shifts = {}; res[2].forEach(function (x) { db.shifts[x.date] = { on: x.is_on, from: t5(x.t_from), to: t5(x.t_to) }; });
+      db.invoices = res[3].map(function (i) { return { id: i.id, no: i.no, date: i.date, due: i.due, clientId: i.client_id, clientAddr: i.client_addr || '', items: i.items || [], pay: i.pay, apptIds: i.appt_ids || [] }; });
+      var remote = (res[4][0] && res[4][0].data) || {};
+      var firstRun = !Object.keys(remote).length;
+      if (!firstRun) db.settings = Object.assign({}, db.settings, remote);
+      db.settings.pwHash = pw; db.settings.user = us;
+      try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+      last = snap(rowsOf(db));
+      if (firstRun) { last.settings = {}; cloudSync(); }
+    });
+  }
+  function uid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) { var r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+  }
 
   /* ---------- Pomocné ---------- */
   var $app = document.getElementById('app'), $sheet = document.getElementById('sheet'), $toast = document.getElementById('toast');
@@ -94,14 +150,20 @@
   function loginView() {
     $app.innerHTML = '<div class="login"><form id="lf" autocomplete="on">' +
       '<h1>MR. PEDIKER</h1><p>Administrace salonu</p>' +
-      '<div class="field"><label for="lu">Uživatel</label><input id="lu" name="username" autocomplete="username" autocapitalize="none" required></div>' +
+      '<div class="field"><label for="lu">' + (CLOUD ? 'E-mail' : 'Uživatel') + '</label><input id="lu" name="username" ' + (CLOUD ? 'type="email" inputmode="email" ' : '') + 'autocomplete="username" autocapitalize="none" required></div>' +
       '<div class="field"><label for="lp">Heslo</label><input id="lp" name="password" type="password" autocomplete="current-password" required></div>' +
       '<p class="err small" id="le" style="color:#E7C27D;min-height:1em;margin:0 0 10px"></p>' +
       '<button class="btn p block" type="submit">Přihlásit</button>' +
-      '<p class="small muted" style="margin:16px 0 0">Data jsou uložena jen v tomto zařízení.</p></form></div>';
+      '<p class="small muted" style="margin:16px 0 0">' + (CLOUD ? 'Data jsou uložena v zabezpečené databázi.' : 'Data jsou uložena jen v tomto zařízení.') + '</p></form></div>';
     document.getElementById('lf').addEventListener('submit', function (e) {
       e.preventDefault();
       var u = document.getElementById('lu').value.trim(), p = document.getElementById('lp').value;
+      if (CLOUD) {
+        document.getElementById('le').textContent = 'Přihlašuji…';
+        MPDB.signIn(u, p).then(function () { return cloudLoad(); }).then(function () { sessionStorage.setItem(SESSION, '1'); render(); })
+          .catch(function (er) { document.getElementById('le').textContent = er.status === 400 ? 'Špatný e-mail nebo heslo.' : 'Nepodařilo se připojit: ' + er.message; });
+        return;
+      }
       sha(p).then(function (h) {
         if (u === db.settings.user && h === db.settings.pwHash) {
           sessionStorage.setItem(SESSION, '1'); render();
@@ -120,7 +182,7 @@
     var t = today(), upcoming = db.appts.filter(function (a) { return a.date === iso(t) && active(a); }).length;
     $app.innerHTML =
       '<header class="top"><h1>' + title + '<small>' + DNL[t.getDay()] + ' ' + t.getDate() + '. ' + MG[t.getMonth()] + ' · dnes ' + upcoming + ' ' + (upcoming === 1 ? 'termín' : upcoming > 1 && upcoming < 5 ? 'termíny' : 'termínů') + '</small></h1>' +
-      '<a class="btn sm g" href="../" title="Zpět na web">Web</a></header>' +
+      (CLOUD ? '<span id="sync" class="small muted" style="margin-left:auto">● uloženo</span>' : '') + '<a class="btn sm g" href="../" title="Zpět na web">Web</a></header>' +
       '<main>' + body + '</main>' +
       '<nav class="tabs" aria-label="Sekce">' + TABS.map(function (x) { return '<button type="button" data-act="tab" data-v="' + x[0] + '"' + (ui.tab === x[0] ? ' aria-current="page"' : '') + '>' + x[2] + x[1] + '</button>'; }).join('') + '</nav>' +
       (ui.tab === 'cal' ? '<button class="fab" type="button" data-act="newAppt" aria-label="Nový termín">' + I.plus + '</button>' : '') +
@@ -428,10 +490,10 @@
       '<div class="h2">Ceník služeb</div><div class="card">' + s.services.map(function (x, k) { return '<div class="inv-item" style="grid-template-columns:1fr 80px 60px 40px" data-svc="' + k + '"><input value="' + esc(x.name) + '" data-f="name" aria-label="Služba"><input type="number" value="' + x.price + '" data-f="price" aria-label="Cena"><input type="number" value="' + x.dur + '" data-f="dur" aria-label="Minut"><button class="btn icon g" style="width:40px;min-height:44px" data-act="rmSvc" data-v="' + k + '" aria-label="Odebrat">×</button></div>'; }).join('') +
       '<div class="small muted" style="margin:4px 0 10px">Název · cena Kč · délka min</div><div class="actions two"><button class="btn g block" data-act="addSvc">+ Služba</button><button class="btn p block" data-act="saveSvc">Uložit ceník</button></div></div>' +
       '<div class="h2">Přihlášení</div><div class="card"><form id="pf">' +
-      '<div class="field"><label for="p-u">Uživatel</label><input id="p-u" value="' + esc(s.user) + '" autocomplete="username" autocapitalize="none"></div>' +
+      (CLOUD ? '<p class="small muted" style="margin-top:0">Přihlášen jako <b>' + esc(MPDB.user || '') + '</b></p><input id="p-u" type="hidden" value="x">' : '<div class="field"><label for="p-u">Uživatel</label><input id="p-u" value="' + esc(s.user) + '" autocomplete="username" autocapitalize="none"></div>') +
       '<div class="field"><label for="p-n">Nové heslo</label><input id="p-n" type="password" autocomplete="new-password" minlength="6"></div>' +
       '<button class="btn block" type="submit">Změnit heslo</button></form></div>' +
-      '<div class="h2">Záloha dat</div><div class="card"><p class="small muted" style="margin-top:0">Všechna data jsou jen v tomto telefonu. Pravidelně si stáhni zálohu (třeba do e-mailu nebo na Disk). Zálohou přeneseš data i do jiného zařízení.</p>' +
+      '<div class="h2">Záloha dat</div><div class="card"><p class="small muted" style="margin-top:0">' + (CLOUD ? 'Data se ukládají do databáze a jsou stejná na všech zařízeních. Bezplatná databáze nedělá automatické zálohy – jednou za měsíc si stáhni zálohu.' : 'Všechna data jsou jen v tomto telefonu. Pravidelně si stáhni zálohu (třeba do e-mailu nebo na Disk). Zálohou přeneseš data i do jiného zařízení.') + '</p>' +
       '<div class="actions two"><button class="btn block" data-act="export">Stáhnout zálohu</button><label class="btn block g" style="cursor:pointer">Nahrát zálohu<input type="file" id="imp-file" accept="application/json,.json" hidden></label></div>' +
       '<p class="small muted">Klientů: ' + db.clients.length + ' · termínů: ' + db.appts.length + ' · faktur: ' + db.invoices.length + '</p></div>' +
       '<div class="actions"><button class="btn g block" data-act="logout">Odhlásit</button><button class="btn danger block" data-act="wipe">Smazat všechna data</button></div>';
@@ -495,7 +557,7 @@
       case 'export':
         var blob = new Blob([JSON.stringify(db, null, 1)], { type: 'application/json' }), url = URL.createObjectURL(blob), l = document.createElement('a');
         l.href = url; l.download = 'mrpediker-zaloha-' + iso(today()) + '.json'; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000); toast('Záloha stažena'); break;
-      case 'logout': sessionStorage.removeItem(SESSION); render(); break;
+      case 'logout': sessionStorage.removeItem(SESSION); if (CLOUD) { MPDB.signOut(); last = null; } render(); break;
       case 'wipe': if (confirm('Opravdu smazat VŠECHNA data? Nejde to vrátit.') && confirm('Máš zálohu? Poslední potvrzení.')) { var pw = db.settings.pwHash, u = db.settings.user; localStorage.removeItem(KEY); load(); db.settings.pwHash = pw; db.settings.user = u; save(); render(); toast('Data smazána'); } break;
     }
   });
@@ -523,7 +585,7 @@
     if (el.id === 'imp-file' && el.files[0]) {
       var r = new FileReader();
       r.onload = function () {
-        try { var data = JSON.parse(r.result); if (!data.settings || !data.appts) throw 0; if (!confirm('Nahradit současná data zálohou?')) return; localStorage.setItem(KEY, JSON.stringify(data)); load(); render(); toast('Záloha nahrána'); }
+        try { var data = JSON.parse(r.result); if (!data.settings || !data.appts) throw 0; if (!confirm('Nahradit současná data zálohou?')) return; localStorage.setItem(KEY, JSON.stringify(data)); load(); save(); render(); toast('Záloha nahrána'); }
         catch (x) { toast('Soubor není platná záloha'); }
       };
       r.readAsText(el.files[0]);
@@ -540,11 +602,27 @@
       if (!u) return toast('Vyplň uživatele');
       if (p && p.length < 6) return toast('Heslo musí mít aspoň 6 znaků');
       db.settings.user = u;
+      if (CLOUD) {
+        if (!p) return toast('Zadej nové heslo');
+        MPDB.setPassword(p).then(function () { document.getElementById('p-n').value = ''; toast('Heslo změněno'); }).catch(function (er) { toast('Heslo se nezměnilo: ' + er.message); });
+        return;
+      }
       (p ? sha(p).then(function (h) { db.settings.pwHash = h; }) : Promise.resolve()).then(function () { save(); document.getElementById('p-n').value = ''; toast(p ? 'Heslo změněno' : 'Uloženo'); });
     }
   });
 
   /* ---------- Start ---------- */
   load();
-  (db.settings.pwHash ? Promise.resolve() : sha('admin').then(function (h) { db.settings.pwHash = h; save(); })).then(render);
+  if (CLOUD) {
+    if (MPDB.loggedIn()) {
+      $app.innerHTML = '<div class="login"><p class="muted">Načítám…</p></div>';
+      cloudLoad().then(function () { sessionStorage.setItem(SESSION, '1'); render(); }).catch(function () { sessionStorage.removeItem(SESSION); render(); });
+    } else { sessionStorage.removeItem(SESSION); render(); }
+    // po návratu do aplikace načíst nové rezervace z webu
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' && last && !syncing && $sheet.hidden && MPDB.loggedIn()) cloudLoad().then(render).catch(function () {});
+    });
+  } else {
+    (db.settings.pwHash ? Promise.resolve() : sha('admin').then(function (h) { db.settings.pwHash = h; save(); })).then(render);
+  }
 })();

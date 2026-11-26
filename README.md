@@ -16,3 +16,9 @@ V obchodních podmínkách a ochraně osobních údajů jsou v [hranatých závo
 ## Administrace (/admin)
 Kalendář termínů (přesouvání, stavy, kolize, mimo směnu), směny na 5 týdnů dopředu, klienti s historií, faktury (tisk / PDF), ceník, záloha dat.
 Výchozí přihlášení `admin` / `admin` – změnit v Nastavení. Data jsou uložena **jen v zařízení**, kde se admin používá (localStorage); záloha přes Nastavení → Stáhnout zálohu.
+
+## Databáze (Supabase, zdarma)
+1. Projekt na supabase.com (region Frankfurt), v SQL Editoru spustit `supabase/schema.sql`.
+2. Authentication → Users → Add user (účet pro Míru), vypnout registraci nových uživatelů.
+3. Do `config.js` doplnit Project URL a anon/publishable klíč.
+Pak se admin přihlašuje e-mailem, data jsou společná pro všechna zařízení a online rezervace nabízí jen volné časy podle směn. Bez vyplněného `config.js` vše funguje v původním režimu.
