@@ -4,5 +4,5 @@
    Když jsou údaje prázdné, web i admin fungují bez databáze (rezervace přes SMS/e-mail, data jen v zařízení). */
 window.MP_CONFIG = {
   supabaseUrl: 'https://hgpemkwvptjxrvctasrg.supabase.co',
-  supabaseKey: ''    // anon / publishable klíč
+  supabaseKey: 'sb_publishable_jH22J_yY9qwj674hRwDp_A_CTMlx-bN'
 };

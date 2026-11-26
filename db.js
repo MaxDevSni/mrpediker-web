@@ -9,7 +9,9 @@
 
   function headers(extra, anon) {
     var h = { apikey: KEY, 'Content-Type': 'application/json' };
-    h.Authorization = 'Bearer ' + (!anon && session ? session.access_token : KEY);
+    // Nové klíče sb_publishable_ nejsou JWT – posílají se jen v hlavičce apikey.
+    if (!anon && session) h.Authorization = 'Bearer ' + session.access_token;
+    else if (/^eyJ/.test(KEY)) h.Authorization = 'Bearer ' + KEY;
     return Object.assign(h, extra || {});
   }
   function fail(r) {
