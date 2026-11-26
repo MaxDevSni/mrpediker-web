@@ -96,7 +96,7 @@
       '<h1>MR. PEDIKER</h1><p>Administrace salonu</p>' +
       '<div class="field"><label for="lu">Uživatel</label><input id="lu" name="username" autocomplete="username" autocapitalize="none" required></div>' +
       '<div class="field"><label for="lp">Heslo</label><input id="lp" name="password" type="password" autocomplete="current-password" required></div>' +
-      '<p class="err small" id="le" style="color:#E8A08F;min-height:1em;margin:0 0 10px"></p>' +
+      '<p class="err small" id="le" style="color:#E7C27D;min-height:1em;margin:0 0 10px"></p>' +
       '<button class="btn p block" type="submit">Přihlásit</button>' +
       '<p class="small muted" style="margin:16px 0 0">Data jsou uložena jen v tomto zařízení.</p></form></div>';
     document.getElementById('lf').addEventListener('submit', function (e) {

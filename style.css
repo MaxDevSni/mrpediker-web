@@ -166,7 +166,7 @@ fieldset.bk-pane legend{padding:0}
 .summary dt{color:var(--muted)} .summary dd{margin:0;font-weight:500}
 .bk-nav{display:flex;gap:10px;margin-top:22px}
 .bk-nav .btn{flex:1}
-.err{color:#E8A08F;font-size:14px;margin:8px 0 0;min-height:1em}
+.err{color:#E7C27D;font-size:14px;margin:8px 0 0;min-height:1em}
 .send{display:grid;gap:10px}
 .bk-done{text-align:center}
 .bk-done .big{font:700 40px/1 var(--display);text-transform:uppercase;margin:6px 0 12px}
