@@ -213,7 +213,7 @@
     }
     var day = ui.day, sh = shiftOf(day), list = apptsOn(day);
     var pending = db.appts.filter(function (a) { return a.status === 'ceka'; }).length;
-    return '<div class="cal-head"><button class="btn icon g" data-act="month" data-v="-1" aria-label="Předchozí měsíc">' + I.l + '</button>' +
+    return installCard(false) + '<div class="cal-head"><button class="btn icon g" data-act="month" data-v="-1" aria-label="Předchozí měsíc">' + I.l + '</button>' +
       '<h2>' + MN[mo] + ' ' + y + '</h2><button class="btn icon g" data-act="month" data-v="1" aria-label="Další měsíc">' + I.r + '</button></div>' +
       '<div class="cal">' + ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'].map(function (x) { return '<span class="dn">' + x + '</span>'; }).join('') + cells + '</div>' +
       '<div class="legend"><span><i style="background:var(--sf)"></i>Pracovní den</span><span><i style="background:#1b1713;border:1px solid var(--hair)"></i>Volno</span><span><i class="dot" style="border-radius:50%;background:var(--br)"></i>Termín</span></div>' +
@@ -571,7 +571,7 @@
   /* ---------- Nastavení ---------- */
   function setView() {
     var s = db.settings;
-    return '<div class="h2">Údaje na fakturu</div><div class="card"><form id="sf">' +
+    return '<div class="h2">Aplikace</div>' + installCard(true) + '<div class="h2">Údaje na fakturu</div><div class="card"><form id="sf">' +
       '<div class="field"><label for="s-n">Jméno</label><input id="s-n" value="' + esc(s.name) + '"></div>' +
       '<div class="two"><div class="field"><label for="s-i">IČO</label><input id="s-i" inputmode="numeric" value="' + esc(s.ico) + '"></div><div class="field"><label for="s-t">Telefon</label><input id="s-t" value="' + esc(s.tel) + '"></div></div>' +
       '<div class="field"><label for="s-a">Adresa</label><input id="s-a" value="' + esc(s.addr) + '"></div>' +
@@ -591,6 +591,29 @@
       '<div class="actions two"><button class="btn block" data-act="export">Stáhnout zálohu</button><label class="btn block g" style="cursor:pointer">Nahrát zálohu<input type="file" id="imp-file" accept="application/json,.json" hidden></label></div>' +
       '<p class="small muted">Klientů: ' + db.clients.length + ' · termínů: ' + db.appts.length + ' · faktur: ' + db.invoices.length + '</p></div>' +
       '<div class="actions"><button class="btn g block" data-act="logout">Odhlásit</button><button class="btn danger block" data-act="wipe">Smazat všechna data</button></div>';
+  }
+
+  /* ---------- Přidat na plochu ---------- */
+  var installEvt = null;
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; if (sessionStorage.getItem(SESSION) === '1') render(); });
+  window.addEventListener('appinstalled', function () { installEvt = null; standalone = true; toast('Aplikace je na ploše'); render(); });
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(function () {});
+  function installCard(inSettings) {
+    if (standalone) return inSettings ? '<div class="card small muted">Administrace je spuštěná z plochy jako aplikace.</div>' : '';
+    if (!inSettings && localStorage.getItem('mp_install_hide') === '1') return '';
+    return '<div class="card install"><div class="row" style="gap:12px;flex-wrap:nowrap"><img src="icon-192.png" alt="" width="48" height="48" style="flex:none">' +
+      '<div class="grow"><b>Přidat admin na plochu</b><div class="small muted">Otevře se jedním klepnutím jako aplikace, bez hledání v prohlížeči.</div></div>' +
+      (inSettings ? '' : '<button class="close" data-act="hideInstall" aria-label="Skrýt" style="flex:none">×</button>') + '</div>' +
+      '<button class="btn p block" style="margin-top:12px" data-act="install">Přidat na plochu</button></div>';
+  }
+  function installHelp() {
+    var steps = isIOS
+      ? '<ol class="steps-ol"><li>Dole v Safari klepni na <b>Sdílet</b> (čtverec se šipkou nahoru).</li><li>Sjeď níž a vyber <b>Přidat na plochu</b>.</li><li>Potvrď <b>Přidat</b> vpravo nahoře.</li></ol><p class="small muted">Funguje jen v Safari. V Chromu na iPhonu klepni na ikonu sdílení v adresním řádku.</p>'
+      : '<ol class="steps-ol"><li>Vpravo nahoře v Chromu klepni na <b>⋮</b> (tři tečky).</li><li>Vyber <b>Přidat na plochu</b> nebo <b>Nainstalovat aplikaci</b>.</li><li>Potvrď <b>Přidat</b>.</li></ol>';
+    openSheet('<h2>Přidat na plochu<button class="close" data-act="close" aria-label="Zavřít">×</button></h2>' + steps +
+      '<p class="small muted">Na ploše se objeví ikona Mr. Pediker. Přihlášení zůstane uložené.</p><div class="actions"><button class="btn p block" data-act="close">Rozumím</button></div>');
   }
 
   /* ---------- Sheet ---------- */
@@ -617,6 +640,8 @@
       case 'delAppt': if (confirm('Opravdu smazat termín?')) { db.appts = db.appts.filter(function (x) { return x.id !== v; }); save(); closeSheet(); render(); toast('Termín smazán'); } break;
       case 'invFromAppt': a = db.appts.find(function (x) { return x.id === v; }); closeSheet(); invForm(invFromAppts(a.clientId, [a])); break;
       case 'importSms': importSms(); break;
+      case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.then(function () { installEvt = null; render(); }); } else installHelp(); break;
+      case 'hideInstall': localStorage.setItem('mp_install_hide', '1'); render(); break;
       case 'finMonth': ui.finMonth = ymShift(ui.finMonth, +v); render(); break;
       case 'addFix': fin().fixed.push({ name: '', amount: 0 }); save(); render(); break;
       case 'rmFix': fin().fixed.splice(+v, 1); save(); render(); break;

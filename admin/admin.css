@@ -175,3 +175,7 @@ main{max-width:980px;margin:0 auto;padding:16px}
 .calc-total.neg{border-color:var(--red)} .calc-total.neg b{color:var(--ink)}
 
 @media(max-width:959px){.tabs button{font-size:9.5px;letter-spacing:.04em}}
+
+.card.install{border-color:var(--br);margin-bottom:14px}
+.card.install img{border-radius:12px}
+.steps-ol{padding-left:20px;margin:0 0 12px}.steps-ol li{margin-bottom:10px}
