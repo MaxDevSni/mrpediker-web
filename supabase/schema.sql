@@ -61,18 +61,31 @@ alter table public.shifts enable row level security;
 alter table public.invoices enable row level security;
 alter table public.settings enable row level security;
 
+drop policy if exists "admin vse" on public.clients;
 create policy "admin vse" on public.clients for all to authenticated using (true) with check (true);
+drop policy if exists "admin vse" on public.appointments;
 create policy "admin vse" on public.appointments for all to authenticated using (true) with check (true);
+drop policy if exists "admin vse" on public.shifts;
 create policy "admin vse" on public.shifts for all to authenticated using (true) with check (true);
+drop policy if exists "admin vse" on public.invoices;
 create policy "admin vse" on public.invoices for all to authenticated using (true) with check (true);
+drop policy if exists "admin vse" on public.settings;
 create policy "admin vse" on public.settings for all to authenticated using (true) with check (true);
 -- Směny (kdy Míra pracuje) neobsahují osobní údaje – web je smí číst.
+drop policy if exists "web cte smeny" on public.shifts;
 create policy "web cte smeny" on public.shifts for select to anon using (true);
+
+-- Oprávnění (řádky dál omezuje RLS výše)
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.clients, public.appointments, public.shifts, public.invoices, public.settings to authenticated;
+grant select on public.shifts to anon;
+revoke all on public.clients, public.appointments, public.invoices, public.settings from anon;
 
 -- ---------- Funkce pro web ----------
 -- Obsazené časy (bez jmen) pro zobrazení volných termínů.
+drop function if exists public.busy_slots(date, date);
 create or replace function public.busy_slots(d_from date, d_to date)
-returns table (date date, time time, dur integer)
+returns table (slot_date date, slot_time time, slot_dur integer)
 language sql security definer set search_path = public as $$
   select a.date, a.time, a.dur from public.appointments a
   where a.date between d_from and d_to and a.status not in ('zruseno','neprisel');

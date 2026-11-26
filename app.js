@@ -183,7 +183,7 @@
       .then(function (r) {
         var shifts = {}; r[0].forEach(function (x) { shifts[x.date] = { is_on: x.is_on, t_from: x.t_from.slice(0, 5), t_to: x.t_to.slice(0, 5) }; });
         if (!Object.keys(shifts).some(function (k) { return shifts[k].is_on; })) return; // směny nevyplněné → klasická žádost přes SMS
-        avail = { shifts: shifts, busy: (r[1] || []).map(function (b) { return { date: b.date, time: b.time.slice(0, 5), dur: b.dur }; }) };
+        avail = { shifts: shifts, busy: (r[1] || []).map(function (b) { return { date: b.slot_date, time: String(b.slot_time).slice(0, 5), dur: b.slot_dur }; }) };
         form.classList.add('online');
         drawDays(); drawTimes();
         $('#bk-online').hidden = false; $('#bk-offline').hidden = true;
