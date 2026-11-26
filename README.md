@@ -12,3 +12,7 @@ Klient vybere ošetření, den, čas a vyplní kontakt; rezervace se odešle jak
 
 ## Doplnit
 V obchodních podmínkách a ochraně osobních údajů jsou v [hranatých závorkách] údaje k doplnění (storno lhůta a poplatek, platba kartou, doba uchování, název rezervačního systému).
+
+## Administrace (/admin)
+Kalendář termínů (přesouvání, stavy, kolize, mimo směnu), směny na 5 týdnů dopředu, klienti s historií, faktury (tisk / PDF), ceník, záloha dat.
+Výchozí přihlášení `admin` / `admin` – změnit v Nastavení. Data jsou uložena **jen v zařízení**, kde se admin používá (localStorage); záloha přes Nastavení → Stáhnout zálohu.
