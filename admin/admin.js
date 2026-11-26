@@ -9,7 +9,7 @@
   var MG = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'];
   var STATUS = { ceka: 'Čeká na potvrzení', potvrzeno: 'Potvrzeno', hotovo: 'Hotovo', neprisel: 'Nepřišel', zruseno: 'Zrušeno' };
   var DEFAULT_SERVICES = [
-    ['Mokrá pedikúra', 690, 60], ['Přístrojová pedikúra', 790, 60], ['Kombinovaná pedikúra', 890, 60], ['SPA pedikúra', 1290, 70],
+    ['Mokrá pedikúra', 690, 80], ['Přístrojová pedikúra', 790, 80], ['Kombinovaná pedikúra', 890, 80], ['SPA pedikúra', 1290, 80],
     ['Aplikace nehtového rovnátka', 650, 30], ['Stříhání a zapilování nehtů', 250, 20], ['Ošetření zarostlého nehtu (tamponáda)', 250, 20],
     ['Odstranění hyperkeratózy', 290, 20], ['Odstranění gel-laku na nohou', 250, 15], ['Odstranění kuřího oka', 150, 15], ['Masáž nohou', 290, 20]
   ].map(function (s) { return { name: s[0], price: s[1], dur: s[2] }; });
@@ -23,8 +23,16 @@
     db.settings = Object.assign({
       name: 'Miroslav Hořčica', brand: 'Mr. Pediker – Pedikúra by Míra', ico: '05860334', addr: 'Pospíšilova 311/10, 500 03 Hradec Králové',
       email: 'mrpediker@seznam.cz', tel: '737 307 321', bank: '', prefix: 'MP', nextNo: 1, dueDays: 14,
-      defFrom: '08:00', defTo: '19:00', workDays: [1, 2, 3, 4, 5], services: DEFAULT_SERVICES, pwHash: '', user: 'admin'
+      defFrom: '08:00', defTo: '19:00', workDays: [1, 2, 3, 4, 5], services: DEFAULT_SERVICES, pwHash: '', user: 'admin', buffer: 15, cfgV: 2
     }, db.settings || {});
+    migrate(db.settings);
+  }
+  function migrate(st) {
+    if ((st.cfgV || 1) < 2) {
+      st.services.forEach(function (x) { if (/pedikúra/i.test(x.name) && (x.dur || 0) < 80) x.dur = 80; });
+      if (st.buffer == null) st.buffer = 15;
+      st.cfgV = 2;
+    }
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Nepodařilo se uložit – plné úložiště?'); } if (CLOUD) cloudSync(); }
 
@@ -73,7 +81,7 @@
       db.invoices = res[3].map(function (i) { return { id: i.id, no: i.no, date: i.date, due: i.due, clientId: i.client_id, clientAddr: i.client_addr || '', items: i.items || [], pay: i.pay, apptIds: i.appt_ids || [] }; });
       var remote = (res[4][0] && res[4][0].data) || {};
       var firstRun = !Object.keys(remote).length;
-      if (!firstRun) db.settings = Object.assign({}, db.settings, remote);
+      if (!firstRun) { db.settings = Object.assign({}, db.settings, remote); var v0 = db.settings.cfgV; migrate(db.settings); if (v0 !== db.settings.cfgV) firstRun = true; }
       db.settings.pwHash = pw; db.settings.user = us;
       try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
       last = snap(rowsOf(db));
@@ -116,10 +124,10 @@
   function apptsOn(ds) { return db.appts.filter(function (a) { return a.date === ds; }).sort(function (a, b) { return a.time.localeCompare(b.time); }); }
   function active(a) { return a.status !== 'zruseno' && a.status !== 'neprisel'; }
   function conflicts(a) {
-    var s = mins(a.time), e = s + (+a.dur || 60);
+    var buf = +db.settings.buffer || 0, s = mins(a.time), e = s + (+a.dur || 60) + buf;
     return db.appts.filter(function (b) {
       if (b.id === a.id || b.date !== a.date || !active(b)) return false;
-      var bs = mins(b.time), be = bs + (+b.dur || 60);
+      var bs = mins(b.time), be = bs + (+b.dur || 60) + buf;
       return s < be && bs < e;
     });
   }
@@ -265,7 +273,7 @@
       var d = draft(); if (!d.date || !d.time) return;
       var w = [], o = outOfShift(d), k = conflicts(d);
       if (o) w.push(o);
-      if (k.length) w.push('Kolize s: ' + k.map(function (x) { var cc = client(x.clientId); return x.time + ' ' + (cc ? cc.name : ''); }).join(', '));
+      if (k.length) w.push('Kolize (včetně přestávky ' + (+db.settings.buffer || 0) + ' min) s: ' + k.map(function (x) { var cc = client(x.clientId); return x.time + ' ' + (cc ? cc.name : ''); }).join(', '));
       f.querySelector('#a-warn').innerHTML = w.length ? '<div class="warn">' + w.map(esc).join('<br>') + '</div>' : '';
     }
     ['#a-d', '#a-h', '#a-du'].forEach(function (s) { f.querySelector(s).addEventListener('change', check); });
@@ -488,7 +496,8 @@
       '<div class="field"><label for="s-d">Splatnost (dní)</label><input id="s-d" type="number" value="' + s.dueDays + '"></div>' +
       '<button class="btn p block" type="submit">Uložit údaje</button></form></div>' +
       '<div class="h2">Ceník služeb</div><div class="card">' + s.services.map(function (x, k) { return '<div class="inv-item" style="grid-template-columns:1fr 80px 60px 40px" data-svc="' + k + '"><input value="' + esc(x.name) + '" data-f="name" aria-label="Služba"><input type="number" value="' + x.price + '" data-f="price" aria-label="Cena"><input type="number" value="' + x.dur + '" data-f="dur" aria-label="Minut"><button class="btn icon g" style="width:40px;min-height:44px" data-act="rmSvc" data-v="' + k + '" aria-label="Odebrat">×</button></div>'; }).join('') +
-      '<div class="small muted" style="margin:4px 0 10px">Název · cena Kč · délka min</div><div class="actions two"><button class="btn g block" data-act="addSvc">+ Služba</button><button class="btn p block" data-act="saveSvc">Uložit ceník</button></div></div>' +
+      '<div class="small muted" style="margin:4px 0 10px">Název · cena Kč · délka min (podle délky se počítají volné časy v online rezervaci)</div>' +
+      '<div class="field" style="margin-top:8px"><label for="s-buf">Přestávka mezi klienty (min)</label><input id="s-buf" type="number" inputmode="numeric" min="0" max="60" step="5" value="' + (s.buffer == null ? 15 : s.buffer) + '"></div><div class="actions two"><button class="btn g block" data-act="addSvc">+ Služba</button><button class="btn p block" data-act="saveSvc">Uložit ceník</button></div></div>' +
       '<div class="h2">Přihlášení</div><div class="card"><form id="pf">' +
       (CLOUD ? '<p class="small muted" style="margin-top:0">Přihlášen jako <b>' + esc(MPDB.user || '') + '</b></p><input id="p-u" type="hidden" value="x">' : '<div class="field"><label for="p-u">Uživatel</label><input id="p-u" value="' + esc(s.user) + '" autocomplete="username" autocapitalize="none"></div>') +
       '<div class="field"><label for="p-n">Nové heslo</label><input id="p-n" type="password" autocomplete="new-password" minlength="6"></div>' +
@@ -516,7 +525,7 @@
       case 'day': ui.day = v; var d = parse(v); if (d.getMonth() !== ui.month.getMonth()) ui.month = new Date(d.getFullYear(), d.getMonth(), 1); render(); break;
       case 'today': ui.day = iso(today()); ui.month = new Date(today().getFullYear(), today().getMonth(), 1); render(); break;
       case 'pending': a = db.appts.filter(function (x) { return x.status === 'ceka'; }).sort(function (x, y) { return (x.date + x.time).localeCompare(y.date + y.time); })[0]; if (a) { ui.day = a.date; ui.month = new Date(parse(a.date).getFullYear(), parse(a.date).getMonth(), 1); render(); } break;
-      case 'newAppt': apptForm({ id: uid(), date: ui.day, time: suggestTime(ui.day), status: 'potvrzeno', dur: 60 }, true); break;
+      case 'newAppt': apptForm({ id: uid(), date: ui.day, time: suggestTime(ui.day), status: 'potvrzeno', dur: (db.settings.services[0] || {}).dur || 80 }, true); break;
       case 'newApptFor': apptForm({ id: uid(), clientId: v, date: iso(addDays(today(), 1)), time: suggestTime(iso(addDays(today(), 1))), status: 'potvrzeno', dur: 60 }, true); break;
       case 'appt': a = db.appts.find(function (x) { return x.id === v; }); if (a) apptForm(a, false); break;
       case 'done': a = db.appts.find(function (x) { return x.id === v; }); a.status = 'hotovo'; save(); closeSheet(); render(); toast('Označeno jako hotovo'); break;
@@ -553,7 +562,7 @@
       case 'printInv': i = db.invoices.find(function (x) { return x.id === v; }); document.getElementById('print').innerHTML = invHtml(i); var t = document.title; document.title = 'Faktura ' + i.no; window.print(); document.title = t; break;
       case 'addSvc': readSvc(); db.settings.services.push({ name: '', price: 0, dur: 30 }); render(); break;
       case 'rmSvc': readSvc(); db.settings.services.splice(+v, 1); save(); render(); break;
-      case 'saveSvc': readSvc(); save(); toast('Ceník uložen'); break;
+      case 'saveSvc': readSvc(); var bf = document.getElementById('s-buf'); if (bf) db.settings.buffer = Math.max(0, Math.min(60, +bf.value || 0)); save(); toast('Ceník a přestávka uloženy'); break;
       case 'export':
         var blob = new Blob([JSON.stringify(db, null, 1)], { type: 'application/json' }), url = URL.createObjectURL(blob), l = document.createElement('a');
         l.href = url; l.download = 'mrpediker-zaloha-' + iso(today()) + '.json'; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000); toast('Záloha stažena'); break;
@@ -570,7 +579,8 @@
   function suggestTime(ds) {
     var sh = shiftOf(ds), t = mins(sh.from), end = mins(sh.to);
     var list = apptsOn(ds).filter(active);
-    for (; t + 60 <= end; t += 15) { var x = { id: '_', date: ds, time: hm(t), dur: 60 }; if (!conflicts(x).length) return hm(t); }
+    var d0 = (db.settings.services[0] && db.settings.services[0].dur) || 80;
+    for (; t + d0 <= end; t += 15) { var x = { id: '_', date: ds, time: hm(t), dur: d0 }; if (!conflicts(x).length) return hm(t); }
     return sh.from;
   }
   document.addEventListener('change', function (e) {

@@ -97,8 +97,10 @@ create or replace function public.book(
   p_date date, p_time time, p_dur integer, p_note text)
 returns uuid
 language plpgsql security definer set search_path = public as $$
-declare s record; cid uuid; aid uuid;
+declare s record; cid uuid; aid uuid; buf integer;
 begin
+  select coalesce((data->>'buffer')::int, 15) into buf from public.settings where id = 1;
+  buf := coalesce(buf, 15);
   if length(coalesce(trim(p_name),'')) < 3 or length(regexp_replace(coalesce(p_tel,''),'\D','','g')) < 9 then
     raise exception 'Neplatné jméno nebo telefon';
   end if;
@@ -109,8 +111,8 @@ begin
   end if;
   if exists (select 1 from public.appointments a
              where a.date = p_date and a.status not in ('zruseno','neprisel')
-               and p_time < a.time + make_interval(mins => a.dur)
-               and a.time < p_time + make_interval(mins => p_dur)) then
+               and p_time < a.time + make_interval(mins => a.dur + buf)
+               and a.time < p_time + make_interval(mins => p_dur + buf)) then
     raise exception 'Termín je už obsazený';
   end if;
   select id into cid from public.clients
@@ -119,10 +121,19 @@ begin
     insert into public.clients(name, tel, email) values (trim(p_name), trim(p_tel), nullif(trim(p_email),'')) returning id into cid;
   end if;
   insert into public.appointments(client_id, service, price, date, time, dur, status, note, source)
-  values (cid, left(p_service,120), greatest(p_price,0), p_date, p_time, least(greatest(p_dur,15),180), 'ceka', left(p_note,1000), 'web')
+  values (cid, left(p_service,120), greatest(p_price,0), p_date, p_time, least(greatest(p_dur,15),240), 'ceka', left(p_note,1000), 'web')
   returning id into aid;
   return aid;
 end $$;
+
+-- Veřejné nastavení pro web: délky služeb a přestávka mezi klienty (bez osobních údajů).
+create or replace function public.public_settings()
+returns jsonb language sql security definer set search_path = public as $$
+  select jsonb_build_object('buffer', coalesce((data->>'buffer')::int, 15), 'services', coalesce(data->'services', '[]'::jsonb))
+  from public.settings where id = 1;
+$$;
+revoke all on function public.public_settings from public;
+grant execute on function public.public_settings to anon, authenticated;
 
 revoke all on function public.book from public;
 revoke all on function public.busy_slots from public;

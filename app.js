@@ -85,10 +85,10 @@
   if (!form) return;
 
   var SERVICES = [
-    { id: 'mokra', name: 'Mokrá pedikúra', time: '50–70 min', price: '690 Kč', dur: 60 },
-    { id: 'pristrojova', name: 'Přístrojová pedikúra', time: '50–70 min', price: '790 Kč', dur: 60 },
-    { id: 'kombinovana', name: 'Kombinovaná pedikúra', time: '50–70 min', price: '890 Kč', dur: 60 },
-    { id: 'spa', name: 'SPA pedikúra', time: '60–70 min', price: '1 290 Kč', dur: 70 },
+    { id: 'mokra', name: 'Mokrá pedikúra', time: '50–70 min', price: '690 Kč', dur: 80 },
+    { id: 'pristrojova', name: 'Přístrojová pedikúra', time: '50–70 min', price: '790 Kč', dur: 80 },
+    { id: 'kombinovana', name: 'Kombinovaná pedikúra', time: '50–70 min', price: '890 Kč', dur: 80 },
+    { id: 'spa', name: 'SPA pedikúra', time: '60–70 min', price: '1 290 Kč', dur: 80 },
     { id: 'rovnatko', name: 'Aplikace nehtového rovnátka', time: '20–40 min', price: '650 Kč', dur: 30 },
     { id: 'nehty', name: 'Stříhání a zapilování nehtů', time: '', price: '250 Kč', dur: 20 },
     { id: 'zarostly', name: 'Ošetření zarostlého nehtu', time: '', price: '250 Kč', dur: 20 },
@@ -148,9 +148,9 @@
   function freeTimes(ds) {
     if (!avail) return TIMES;
     var sh = avail.shifts[ds]; if (!sh || !sh.is_on) return [];
-    var dur = (state.service && state.service.dur) || 60, out = [], busy = avail.busy.filter(function (b) { return b.date === ds; });
-    for (var t = m2(sh.t_from); t + dur <= m2(sh.t_to); t += 30) {
-      var clash = busy.some(function (b) { var s = m2(b.time); return t < s + b.dur && s < t + dur; });
+    var dur = (state.service && state.service.dur) || 80, buf = avail.buffer, out = [], busy = avail.busy.filter(function (b) { return b.date === ds; });
+    for (var t = m2(sh.t_from); t + dur <= m2(sh.t_to); t += 15) {
+      var clash = busy.some(function (b) { var s = m2(b.time); return t < s + b.dur + buf && s < t + dur + buf; });
       if (!clash) out.push(hm2(t));
     }
     return out;
@@ -179,11 +179,13 @@
   function addD(n) { var d = new Date(today); d.setDate(today.getDate() + n); return d; }
   if (CLOUD) {
     var from = isoD(addD(1)), to = isoD(addD(DAYS_AHEAD));
-    Promise.all([MPDB.selectPublic('shifts', 'select=*&date=gte.' + from + '&date=lte.' + to), MPDB.rpc('busy_slots', { d_from: from, d_to: to }, true)])
+    Promise.all([MPDB.selectPublic('shifts', 'select=*&date=gte.' + from + '&date=lte.' + to), MPDB.rpc('busy_slots', { d_from: from, d_to: to }, true), MPDB.rpc('public_settings', {}, true).catch(function () { return null; })])
       .then(function (r) {
         var shifts = {}; r[0].forEach(function (x) { shifts[x.date] = { is_on: x.is_on, t_from: x.t_from.slice(0, 5), t_to: x.t_to.slice(0, 5) }; });
         if (!Object.keys(shifts).some(function (k) { return shifts[k].is_on; })) return; // směny nevyplněné → klasická žádost přes SMS
-        avail = { shifts: shifts, busy: (r[1] || []).map(function (b) { return { date: b.slot_date, time: String(b.slot_time).slice(0, 5), dur: b.slot_dur }; }) };
+        var ps = r[2] || {};
+        (ps.services || []).forEach(function (x) { SERVICES.forEach(function (sv) { if (x.name && x.dur && sv.name.toLowerCase() === String(x.name).toLowerCase()) sv.dur = +x.dur; }); });
+        avail = { buffer: ps.buffer == null ? 15 : +ps.buffer, shifts: shifts, busy: (r[1] || []).map(function (b) { return { date: b.slot_date, time: String(b.slot_time).slice(0, 5), dur: b.slot_dur }; }) };
         form.classList.add('online');
         drawDays(); drawTimes();
         $('#bk-online').hidden = false; $('#bk-offline').hidden = true;
