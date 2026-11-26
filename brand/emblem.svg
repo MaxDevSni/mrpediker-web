@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <path id="arcTop" d="M 70 200 A 130 130 0 0 1 330 200"/>
+    <path id="arcBot" d="M 62 200 A 138 138 0 0 0 338 200"/>
+  </defs>
+  <circle cx="200" cy="200" r="196" fill="#16130F"/>
+  <circle cx="200" cy="200" r="184" fill="none" stroke="#C99A4A" stroke-width="3"/>
+  <circle cx="200" cy="200" r="176" fill="none" stroke="#C99A4A" stroke-width="1"/>
+  <circle cx="200" cy="200" r="104" fill="none" stroke="#C99A4A" stroke-width="2"/>
+  <text font-family="Oswald, 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif" font-weight="700" font-size="40" letter-spacing="6" fill="#F3EAD8" text-anchor="middle"><textPath href="#arcTop" startOffset="50%">MR. PEDIKER</textPath></text>
+  <text font-family="Oswald, 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif" font-weight="500" font-size="17" letter-spacing="4" fill="#C99A4A" text-anchor="middle" dominant-baseline="hanging"><textPath href="#arcBot" startOffset="50%">PEDIKÚRA · HRADEC KRÁLOVÉ</textPath></text>
+  <g fill="#C99A4A">
+    <path d="M58 200 l5 -11 l5 11 l-5 11 z"/>
+    <path d="M332 200 l5 -11 l5 11 l-5 11 z"/>
+  </g>
+  <!-- footprint -->
+  <g fill="#F3EAD8">
+    <path d="M203 168 C224 168 233 186 231 208 C229 230 222 243 223 259 C224 275 215 288 202 288 C188 288 180 277 182 262 C184 247 175 234 174 212 C173 186 183 168 203 168 Z"/>
+    <ellipse cx="184" cy="148" rx="13" ry="15"/>
+    <ellipse cx="206" cy="140" rx="9" ry="10.5"/>
+    <ellipse cx="223" cy="145" rx="7.5" ry="8.5"/>
+    <ellipse cx="235" cy="155" rx="6.5" ry="7"/>
+    <ellipse cx="242" cy="168" rx="5.5" ry="6"/>
+  </g>
+  <!-- handlebar moustache across the arch -->
+  <path fill="#8E2A24" d="M202 218 C192 208 176 208 168 218 C162 226 152 228 144 220 C146 238 166 246 182 238 C192 233 197 232 202 237 C207 232 212 233 222 238 C238 246 258 238 260 220 C252 228 242 226 236 218 C228 208 212 208 202 218 Z"/>
+</svg>
