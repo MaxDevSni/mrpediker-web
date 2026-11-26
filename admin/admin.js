@@ -145,6 +145,7 @@
     shift: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     cli: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="4"/><path d="M2 21c0-4 3-6 7-6s7 2 7 6M16 4a4 4 0 0 1 0 8M22 21c0-3-2-5-4-5.5"/></svg>',
     inv: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h8"/></svg>',
+    fin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
     set: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z"/></svg>',
     plus: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F3EAD8" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
     l: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>',
@@ -152,7 +153,7 @@
   };
 
   /* ---------- Stav UI ---------- */
-  var ui = { tab: 'cal', month: (function () { var d = today(); d.setDate(1); return d; })(), day: iso(today()), q: '', clientId: null, shiftFrom: iso(today()) };
+  var ui = { tab: 'cal', month: (function () { var d = today(); d.setDate(1); return d; })(), day: iso(today()), q: '', clientId: null, shiftFrom: iso(today()), finMonth: iso(today()).slice(0, 7) };
 
   /* ---------- Přihlášení ---------- */
   function loginView() {
@@ -182,11 +183,11 @@
   }
 
   /* ---------- Rámec ---------- */
-  var TABS = [['cal', 'Kalendář', I.cal], ['shift', 'Směny', I.shift], ['cli', 'Klienti', I.cli], ['inv', 'Faktury', I.inv], ['set', 'Nastavení', I.set]];
+  var TABS = [['cal', 'Kalendář', I.cal], ['shift', 'Směny', I.shift], ['cli', 'Klienti', I.cli], ['fin', 'Přehled', I.fin], ['inv', 'Faktury', I.inv], ['set', 'Nastavení', I.set]];
   function render() {
     if (sessionStorage.getItem(SESSION) !== '1') return loginView();
-    var title = { cal: 'Kalendář', shift: 'Směny', cli: 'Klienti', inv: 'Faktury', set: 'Nastavení' }[ui.tab];
-    var body = { cal: calView, shift: shiftView, cli: ui.clientId ? clientDetail : clientsView, inv: invView, set: setView }[ui.tab]();
+    var title = { cal: 'Kalendář', shift: 'Směny', cli: 'Klienti', fin: 'Přehled', inv: 'Faktury', set: 'Nastavení' }[ui.tab];
+    var body = { cal: calView, shift: shiftView, cli: ui.clientId ? clientDetail : clientsView, fin: finView, inv: invView, set: setView }[ui.tab]();
     var t = today(), upcoming = db.appts.filter(function (a) { return a.date === iso(t) && active(a); }).length;
     $app.innerHTML =
       '<header class="top"><h1>' + title + '<small>' + DNL[t.getDay()] + ' ' + t.getDate() + '. ' + MG[t.getMonth()] + ' · dnes ' + upcoming + ' ' + (upcoming === 1 ? 'termín' : upcoming > 1 && upcoming < 5 ? 'termíny' : 'termínů') + '</small></h1>' +
@@ -414,6 +415,90 @@
     });
   }
 
+
+  /* ---------- Přehled financí ---------- */
+  function fin() {
+    var f = db.settings.finance || (db.settings.finance = {});
+    if (!f.fixed) f.fixed = [{ name: 'Nájem', amount: 0 }, { name: 'Energie a voda', amount: 0 }, { name: 'Sociální a zdravotní pojištění', amount: 0 }, { name: 'Telefon a internet', amount: 0 }];
+    if (!f.months) f.months = {};
+    if (f.goal == null) f.goal = 40000;
+    return f;
+  }
+  function monthOf(ym) { var f = fin(); return f.months[ym] || (f.months[ym] = { items: [], hours: null, extra: 0 }); }
+  function ymShift(ym, n) { var y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1 + n; var d = new Date(y, m, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
+  function ymLabel(ym) { return MN[+ym.slice(5, 7) - 1] + ' ' + ym.slice(0, 4); }
+  function monthStats(ym) {
+    var f = fin(), mo = f.months[ym] || { items: [], hours: null, extra: 0 };
+    var done = db.appts.filter(function (a) { return a.date.slice(0, 7) === ym && a.status === 'hotovo'; });
+    var planned = db.appts.filter(function (a) { return a.date.slice(0, 7) === ym && (a.status === 'potvrzeno' || a.status === 'ceka') && a.date >= iso(today()); });
+    var revenue = done.reduce(function (s, a) { return s + (+a.price || 0); }, 0) + (+mo.extra || 0);
+    var forecast = planned.reduce(function (s, a) { return s + (+a.price || 0); }, 0);
+    var fixed = f.fixed.reduce(function (s, x) { return s + (+x.amount || 0); }, 0);
+    var variable = mo.items.reduce(function (s, x) { return s + (+x.amount || 0); }, 0);
+    var costs = fixed + variable;
+    // odpracované hodiny: ručně, jinak ze směn (do dneška)
+    var shiftH = 0, y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1, last = new Date(y, m + 1, 0).getDate();
+    for (var d = 1; d <= last; d++) { var ds = ym + '-' + pad(d); if (ds > iso(today())) break; var sh = shiftOf(ds); if (sh.on && !sh.auto) shiftH += (mins(sh.to) - mins(sh.from)) / 60; }
+    var clientH = done.reduce(function (s, a) { return s + (+a.dur || 60); }, 0) / 60;
+    var hours = mo.hours != null && mo.hours !== '' ? +mo.hours : (shiftH || clientH);
+    var profit = revenue - costs;
+    var days = {}; done.forEach(function (a) { days[a.date] = (days[a.date] || 0) + (+a.price || 0); });
+    var best = Object.keys(days).sort(function (a, b) { return days[b] - days[a]; })[0];
+    return { done: done, planned: planned, revenue: revenue, forecast: forecast, fixed: fixed, variable: variable, costs: costs, hours: hours, shiftH: shiftH, clientH: clientH,
+      manualH: mo.hours != null && mo.hours !== '', profit: profit, hourly: hours > 0 ? profit / hours : 0, avg: done.length ? (revenue - (+mo.extra || 0)) / done.length : avgPrice(), best: best, bestSum: best ? days[best] : 0, mo: mo };
+  }
+  function avgPrice() { var p = db.settings.services.slice(0, 4).map(function (x) { return +x.price || 0; }); return p.length ? p.reduce(function (a, b) { return a + b; }, 0) / p.length : 800; }
+  function mood(st, goal) {
+    var need = Math.max(0, Math.ceil(-st.profit / (st.avg || 1)));
+    if (goal && st.revenue >= goal) return ['Cíl splněn!', 'Tenhle měsíc máš ' + kc(st.revenue) + '. Klobouk dolů – nohy Hradce jsou v dobrých rukou.'];
+    if (st.profit > 0 && st.hourly >= 300) return ['Jedeš skvěle', 'Jsi v plusu ' + kc(st.profit) + ' a vyděláváš ' + kc(st.hourly) + ' za hodinu. Takhle dál.'];
+    if (st.profit > 0) return ['Jsi v plusu', 'Po zaplacení všech nákladů ti zůstává ' + kc(st.profit) + '. Každý další klient jde čistě do zisku.'];
+    if (st.revenue === 0 && st.costs === 0) return ['Nový měsíc, nové paty', 'Zatím tu nic není. Označ hotové termíny a zapiš náklady – přehled se spočítá sám.'];
+    return ['Zatím pod nulou', 'Na pokrytí nákladů chybí ' + kc(-st.profit) + ' – to je zhruba ' + need + ' ' + (need === 1 ? 'ošetření' : need < 5 ? 'ošetření' : 'ošetření') + '. Dáš to!'];
+  }
+  function finView() {
+    var ym = ui.finMonth, f = fin(), st = monthStats(ym), goal = +f.goal || 0;
+    var md = mood(st, goal), pct = goal ? Math.min(100, Math.round(st.revenue / goal * 100)) : 0;
+    var toGoal = Math.max(0, goal - st.revenue), toGoalN = Math.ceil(toGoal / (st.avg || 1));
+    var prev = monthStats(ymShift(ym, -1)), diff = st.revenue - prev.revenue;
+    var hist = [], maxV = 1;
+    for (var i = 5; i >= 0; i--) { var k = ymShift(ym, -i), s2 = monthStats(k); hist.push([k, s2.revenue, s2.costs]); maxV = Math.max(maxV, s2.revenue, s2.costs); }
+    var pos = st.profit >= 0;
+    return '<div class="cal-head"><button class="btn icon g" data-act="finMonth" data-v="-1" aria-label="Předchozí měsíc">' + I.l + '</button><h2>' + ymLabel(ym) + '</h2><button class="btn icon g" data-act="finMonth" data-v="1" aria-label="Další měsíc">' + I.r + '</button></div>' +
+      '<div class="hero-fin ' + (pos ? 'pos' : 'neg') + '"><div class="k">' + (pos ? 'Zisk' : 'Ztráta') + ' za měsíc</div><div class="big">' + (pos ? '+' : '−') + kc(Math.abs(st.profit)) + '</div>' +
+      '<div class="mood"><b>' + md[0] + '</b><span>' + esc(md[1]) + '</span></div></div>' +
+      '<div class="stats" style="grid-template-columns:repeat(2,1fr)">' +
+      '<div class="stat"><b>' + kc(st.revenue).replace(' Kč', '') + '</b><span>Kč tržby</span></div>' +
+      '<div class="stat"><b>' + kc(st.costs).replace(' Kč', '') + '</b><span>Kč náklady</span></div>' +
+      '<div class="stat"><b>' + kc(st.hourly).replace(' Kč', '') + '</b><span>Kč / hodinu</span></div>' +
+      '<div class="stat"><b>' + st.done.length + '</b><span>ošetření</span></div></div>' +
+      '<div class="card"><div class="row" style="justify-content:space-between"><b>Měsíční cíl tržeb</b><span class="small muted">' + pct + ' %</span></div>' +
+      '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="small muted">' + (toGoal ? 'Do cíle ' + kc(goal) + ' chybí ' + kc(toGoal) + ' ≈ ' + toGoalN + '× ošetření' + (st.forecast ? ' · v kalendáři máš ještě ' + kc(st.forecast) : '') : 'Cíl ' + kc(goal) + ' je splněný. Zkus ho příště zvednout?') + '</div></div>' +
+      '<div class="small muted" style="margin:10px 2px">' + (prev.revenue || diff ? (diff >= 0 ? '▲ o ' + kc(diff) + ' víc' : '▼ o ' + kc(-diff) + ' míň') + ' než ' + ymLabel(ymShift(ym, -1)) : '') + (st.best ? ' · nejlepší den ' + fmtD(st.best) + ' (' + kc(st.bestSum) + ')' : '') + ' · průměr na klienta ' + kc(st.avg) + '</div>' +
+      '<div class="h2">Posledních 6 měsíců</div><div class="card"><div class="chart">' + hist.map(function (h) {
+        return '<div class="col"><div class="bars"><i class="rv" style="height:' + Math.round(h[1] / maxV * 100) + '%" title="Tržby ' + kc(h[1]) + '"></i><i class="cs" style="height:' + Math.round(h[2] / maxV * 100) + '%" title="Náklady ' + kc(h[2]) + '"></i></div><span' + (h[0] === ym ? ' class="on"' : '') + '>' + MN[+h[0].slice(5, 7) - 1].slice(0, 3) + '</span></div>';
+      }).join('') + '</div><div class="legend"><span><i style="background:var(--br)"></i>Tržby</span><span><i style="background:var(--red)"></i>Náklady</span></div></div>' +
+      '<div class="h2">Kalkulačka měsíce</div>' +
+      '<div class="card"><div class="calc-sec">Příjmy</div>' +
+      '<div class="calc-row"><span>Hotová ošetření (' + st.done.length + '×)</span><b>' + kc(st.revenue - (+st.mo.extra || 0)) + '</b></div>' +
+      '<div class="calc-row"><label for="f-extra">Další příjmy (poukazy, prodej)</label><input id="f-extra" type="number" inputmode="numeric" value="' + (+st.mo.extra || '') + '" placeholder="0" data-fin="extra"></div>' +
+      '<div class="calc-sec">Pevné náklady <small>každý měsíc</small></div>' +
+      f.fixed.map(function (x, k) { return '<div class="calc-row"><input class="nm" value="' + esc(x.name) + '" data-fix="' + k + '" data-f="name" aria-label="Název nákladu"><input type="number" inputmode="numeric" value="' + (+x.amount || '') + '" placeholder="0" data-fix="' + k + '" data-f="amount" aria-label="Částka"><button class="btn icon g sm" data-act="rmFix" data-v="' + k + '" aria-label="Odebrat">×</button></div>'; }).join('') +
+      '<button class="btn sm g" data-act="addFix">+ Pevný náklad</button>' +
+      '<div class="calc-sec">Náklady v tomto měsíci <small>materiál, nákupy</small></div>' +
+      st.mo.items.map(function (x, k) { return '<div class="calc-row"><input class="nm" value="' + esc(x.name) + '" data-var="' + k + '" data-f="name" aria-label="Název nákladu"><input type="number" inputmode="numeric" value="' + (+x.amount || '') + '" placeholder="0" data-var="' + k + '" data-f="amount" aria-label="Částka"><button class="btn icon g sm" data-act="rmVar" data-v="' + k + '" aria-label="Odebrat">×</button></div>'; }).join('') +
+      '<div class="row"><button class="btn sm g" data-act="addVar" data-v="Materiál">+ Materiál</button><button class="btn sm g" data-act="addVar" data-v="">+ Jiný náklad</button></div>' +
+      '<div class="calc-sec">Čas</div>' +
+      '<div class="calc-row"><label for="f-hours">Odpracované hodiny</label><input id="f-hours" type="number" inputmode="decimal" step="0.5" value="' + (st.manualH ? st.mo.hours : '') + '" placeholder="' + Math.round(st.hours * 10) / 10 + '" data-fin="hours"></div>' +
+      '<div class="small muted" style="margin:-4px 0 6px">' + (st.manualH ? 'Zadáno ručně.' : 'Spočítáno ' + (st.shiftH ? 'ze směn do dneška' : 'z délky hotových ošetření') + ' – můžeš přepsat.') + ' S klienty: ' + Math.round(st.clientH * 10) / 10 + ' h.</div>' +
+      '<div class="calc-sec">Cíl</div>' +
+      '<div class="calc-row"><label for="f-goal">Měsíční cíl tržeb (Kč)</label><input id="f-goal" type="number" inputmode="numeric" step="1000" value="' + goal + '" data-fin="goal"></div>' +
+      '<div class="calc-total ' + (pos ? 'pos' : 'neg') + '"><span>Příjmy ' + kc(st.revenue) + ' − náklady ' + kc(st.costs) + '</span><b>' + (pos ? '+' : '−') + kc(Math.abs(st.profit)) + '</b></div>' +
+      '<div class="small muted" style="margin-top:6px">Hodinovka = zisk ÷ odpracované hodiny = ' + kc(st.hourly) + '/h. Na pokrytí nákladů potřebuješ ' + Math.ceil(st.costs / (st.avg || 1)) + ' ošetření měsíčně.</div>' +
+      '<p class="small muted">Orientační výpočet bez daní. Přesné číslo ti řekne účetní.</p></div>';
+  }
+
   /* ---------- Faktury ---------- */
   function invView() {
     var list = db.invoices.slice().sort(function (a, b) { return b.no.localeCompare(a.no); });
@@ -532,6 +617,11 @@
       case 'delAppt': if (confirm('Opravdu smazat termín?')) { db.appts = db.appts.filter(function (x) { return x.id !== v; }); save(); closeSheet(); render(); toast('Termín smazán'); } break;
       case 'invFromAppt': a = db.appts.find(function (x) { return x.id === v; }); closeSheet(); invForm(invFromAppts(a.clientId, [a])); break;
       case 'importSms': importSms(); break;
+      case 'finMonth': ui.finMonth = ymShift(ui.finMonth, +v); render(); break;
+      case 'addFix': fin().fixed.push({ name: '', amount: 0 }); save(); render(); break;
+      case 'rmFix': fin().fixed.splice(+v, 1); save(); render(); break;
+      case 'addVar': monthOf(ui.finMonth).items.push({ name: v || '', amount: 0 }); save(); render(); setTimeout(function () { var l = document.querySelectorAll('[data-var][data-f=amount]'); if (l.length) l[l.length - 1].focus(); }, 30); break;
+      case 'rmVar': monthOf(ui.finMonth).items.splice(+v, 1); save(); render(); break;
       case 'doImport': doImport(); break;
       case 'editShift': editShiftSheet(v); break;
       case 'saveShift': db.shifts[v] = { on: document.getElementById('es-on').checked, from: document.getElementById('es-f').value || db.settings.defFrom, to: document.getElementById('es-t').value || db.settings.defTo }; save(); closeSheet(); render(); toast('Směna uložena'); break;
@@ -585,6 +675,15 @@
   }
   document.addEventListener('change', function (e) {
     var el = e.target;
+    if (el.dataset && (el.dataset.fin || el.dataset.fix != null || el.dataset.var != null)) {
+      var f = fin(), mo = monthOf(ui.finMonth);
+      if (el.dataset.fin === 'extra') mo.extra = +el.value || 0;
+      if (el.dataset.fin === 'hours') mo.hours = el.value === '' ? null : +el.value;
+      if (el.dataset.fin === 'goal') f.goal = +el.value || 0;
+      if (el.dataset.fix != null) { var x = f.fixed[+el.dataset.fix]; if (x) x[el.dataset.f] = el.dataset.f === 'amount' ? (+el.value || 0) : el.value; }
+      if (el.dataset.var != null) { var y = mo.items[+el.dataset.var]; if (y) y[el.dataset.f] = el.dataset.f === 'amount' ? (+el.value || 0) : el.value; }
+      save(); var sc = window.scrollY; render(); window.scrollTo(0, sc); return;
+    }
     if (el.dataset && el.dataset.shift) {
       var ds = el.dataset.shift, sh = Object.assign({}, shiftOf(ds)); delete sh.auto;
       if (el.dataset.k === 'on') sh.on = el.checked; else sh[el.dataset.k] = el.value;
