@@ -115,3 +115,6 @@ revoke all on function public.book from public;
 revoke all on function public.busy_slots from public;
 grant execute on function public.book to anon, authenticated;
 grant execute on function public.busy_slots to anon, authenticated;
+
+-- Načíst nové tabulky do API
+notify pgrst, 'reload schema';
