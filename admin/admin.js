@@ -23,7 +23,7 @@
     db.settings = Object.assign({
       name: 'Miroslav Hořčica', brand: 'Mr. Pediker – Pedikúra by Míra', ico: '05860334', addr: 'Pospíšilova 311/10, 500 03 Hradec Králové',
       email: 'mrpediker@seznam.cz', tel: '737 307 321', bank: '', prefix: 'MP', nextNo: 1, dueDays: 14,
-      defFrom: '08:00', defTo: '19:00', workDays: [1, 2, 3, 4, 5], services: DEFAULT_SERVICES, pwHash: '', user: 'admin', buffer: 15, cfgV: 2
+      defFrom: '08:00', defTo: '19:00', workDays: [1, 2, 3, 4, 5], services: DEFAULT_SERVICES, pwHash: '', user: 'admin', buffer: 15
     }, db.settings || {});
     migrate(db.settings);
   }
@@ -81,7 +81,7 @@
       db.invoices = res[3].map(function (i) { return { id: i.id, no: i.no, date: i.date, due: i.due, clientId: i.client_id, clientAddr: i.client_addr || '', items: i.items || [], pay: i.pay, apptIds: i.appt_ids || [] }; });
       var remote = (res[4][0] && res[4][0].data) || {};
       var firstRun = !Object.keys(remote).length;
-      if (!firstRun) { db.settings = Object.assign({}, db.settings, remote); var v0 = db.settings.cfgV; migrate(db.settings); if (v0 !== db.settings.cfgV) firstRun = true; }
+      if (!firstRun) { var v0 = remote.cfgV; db.settings = Object.assign({}, db.settings, remote); db.settings.cfgV = v0; migrate(db.settings); if (v0 !== db.settings.cfgV) firstRun = true; }
       db.settings.pwHash = pw; db.settings.user = us;
       try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
       last = snap(rowsOf(db));

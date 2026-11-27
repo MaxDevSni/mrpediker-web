@@ -177,12 +177,14 @@
     });
   }
   function addD(n) { var d = new Date(today); d.setDate(today.getDate() + n); return d; }
-  if (CLOUD) {
+  function loadAvail() {
     var from = isoD(addD(1)), to = isoD(addD(DAYS_AHEAD));
-    Promise.all([MPDB.selectPublic('shifts', 'select=*&date=gte.' + from + '&date=lte.' + to), MPDB.rpc('busy_slots', { d_from: from, d_to: to }, true), MPDB.rpc('public_settings', {}, true).catch(function () { return null; })])
+    return Promise.all([MPDB.selectPublic('shifts', 'select=*&date=gte.' + from + '&date=lte.' + to), MPDB.rpc('busy_slots', { d_from: from, d_to: to }, true), MPDB.rpc('public_settings', {}, true).catch(function () { return null; })])
       .then(function (r) {
         var shifts = {}; r[0].forEach(function (x) { shifts[x.date] = { is_on: x.is_on, t_from: x.t_from.slice(0, 5), t_to: x.t_to.slice(0, 5) }; });
-        if (!Object.keys(shifts).some(function (k) { return shifts[k].is_on; })) return; // směny nevyplněné → klasická žádost přes SMS
+        if (!Object.keys(shifts).some(function (k) { return shifts[k].is_on; })) { // směny nevyplněné → klasická žádost přes SMS
+          avail = null; form.classList.remove('online'); $('#bk-online').hidden = true; $('#bk-offline').hidden = false; drawTimes(); return;
+        }
         var ps = r[2] || {};
         (ps.services || []).forEach(function (x) { SERVICES.forEach(function (sv) { if (x.name && x.dur && sv.name.toLowerCase() === String(x.name).toLowerCase()) sv.dur = +x.dur; }); });
         avail = { buffer: ps.buffer == null ? 15 : +ps.buffer, shifts: shifts, busy: (r[1] || []).map(function (b) { return { date: b.slot_date, time: String(b.slot_time).slice(0, 5), dur: b.slot_dur }; }) };
@@ -192,6 +194,7 @@
         form.querySelector('[data-step="2"] .hint').textContent = 'Zobrazuji jen volné termíny. Rezervace se uloží hned a potvrdím ji SMS.';
       }).catch(function () { /* databáze nedostupná → klasický režim */ });
   }
+  if (CLOUD) loadAvail();
   dayBox.addEventListener('click', function () { if (avail) setTimeout(drawTimes, 0); });
 
   function fmtDay(d) { return DN[d.getDay()] + ' ' + d.getDate() + '. ' + MN[d.getMonth()] + ' ' + d.getFullYear(); }
@@ -242,6 +245,7 @@
     $('#bk-back').hidden = step === 1 || step === 5;
     $('#bk-next').hidden = step >= 4;
     $('.bk-nav').hidden = step === 5;
+    if (step === 2 && avail) loadAvail();
     if (step === 4) summary();
     err.textContent = '';
     var top = form.getBoundingClientRect().top + window.scrollY - 80;
@@ -264,7 +268,13 @@
         $('#bk-done-text').textContent = 'Rezervace na ' + fmtDay(state.day) + ' v ' + state.time + ' je uložená. Potvrdím ji SMS nebo telefonem co nejdřív.';
         go(5);
       })
-      .catch(function (e) { err.textContent = (e.message || 'Rezervaci se nepodařilo odeslat') + '. Zkuste jiný čas, nebo pošlete SMS.'; $('#bk-offline').hidden = false; })
+      .catch(function (e) {
+        var msg = e.message || 'Rezervaci se nepodařilo odeslat';
+        if (/neordinuje|obsazen|Neplatné datum/.test(msg)) {
+          state.time = null;
+          loadAvail().then(function () { if (avail) { drawDays(); drawTimes(); } go(2); err.textContent = 'Tento čas už bohužel není volný. Vyberte prosím jiný – zobrazuji aktuální volné termíny.'; });
+        } else { err.textContent = msg + '. Zkuste to znovu, nebo pošlete SMS.'; $('#bk-offline').hidden = false; }
+      })
       .then(function () { onlineBtn.disabled = false; onlineBtn.textContent = 'Rezervovat termín'; });
   });
 
