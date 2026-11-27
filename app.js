@@ -48,7 +48,7 @@
     el.setAttribute('aria-labelledby', 'ck-t');
     el.innerHTML = '<div class="in"><div>' +
       '<h2 id="ck-t">Cookies</h2>' +
-      '<p>Používám jen nezbytné technické úložiště. Analytické a marketingové cookies zapnu jedině s vaším souhlasem. <a href="cookies.html">Více informací</a></p></div>' +
+      '<p>Používám jen nezbytné technické úložiště. Analytické a marketingové cookies zapnu jedině s vaším souhlasem. <a href="cookies">Více informací</a></p></div>' +
       '<div class="prefs">' +
       '<label><input type="checkbox" checked disabled> <span><b>Nezbytné</b> – vždy aktivní, nutné pro fungování webu.</span></label>' +
       '<label><input type="checkbox" id="ck-a"' + (c.analytics ? ' checked' : '') + '> <span><b>Analytické</b> – anonymní statistika návštěvnosti.</span></label>' +
