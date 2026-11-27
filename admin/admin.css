@@ -187,3 +187,4 @@ input[type=time]::-webkit-date-and-time-value,input[type=date]::-webkit-date-and
 .shift input[type=time]{text-align:center}
 .shift input[type=time]::-webkit-date-and-time-value{text-align:center}
 .field{min-width:0}
+.field input[type=time],.field input[type=date]{width:100%;min-width:0;max-width:100%}
