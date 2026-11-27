@@ -179,7 +179,8 @@
   function addD(n) { var d = new Date(today); d.setDate(today.getDate() + n); return d; }
   function loadAvail() {
     var from = isoD(addD(1)), to = isoD(addD(DAYS_AHEAD));
-    return Promise.all([MPDB.selectPublic('shifts', 'select=*&date=gte.' + from + '&date=lte.' + to), MPDB.rpc('busy_slots', { d_from: from, d_to: to }, true), MPDB.rpc('public_settings', {}, true).catch(function () { return null; })])
+    return Promise.all([MPDB.rpc('public_shifts', { d_from: from, d_to: to }, true).then(function (rows) { return rows.map(function (x) { return { date: x.shift_date, is_on: x.is_on, t_from: x.t_from, t_to: x.t_to }; }); })
+        .catch(function () { return MPDB.selectPublic('shifts', 'select=*&date=gte.' + from + '&date=lte.' + to); }), MPDB.rpc('busy_slots', { d_from: from, d_to: to }, true), MPDB.rpc('public_settings', {}, true).catch(function () { return null; })])
       .then(function (r) {
         var shifts = {}; r[0].forEach(function (x) { shifts[x.date] = { is_on: x.is_on, t_from: x.t_from.slice(0, 5), t_to: x.t_to.slice(0, 5) }; });
         if (!Object.keys(shifts).some(function (k) { return shifts[k].is_on; })) { // směny nevyplněné → klasická žádost přes SMS

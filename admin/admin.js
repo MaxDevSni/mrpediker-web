@@ -37,7 +37,7 @@
   function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Nepodařilo se uložit – plné úložiště?'); } if (CLOUD) cloudSync(); }
 
   /* ---------- Cloud (Supabase) ---------- */
-  var CLOUD = !!(window.MPDB && MPDB.enabled), last = null, syncing = false, again = false;
+  var CLOUD = !!(window.MPDB && MPDB.enabled), last = null, syncing = false, again = false, syncState = 'ok', syncErr = '';
   var t5 = function (t) { return (t || '').slice(0, 5); };
   function rowsOf(d) {
     var r = {};
@@ -55,7 +55,7 @@
   function cloudSync() {
     if (!last) return;
     if (syncing) { again = true; return; }
-    syncing = true;
+    syncing = true; setSync('busy');
     var now = snap(rowsOf(db)), chain = Promise.resolve();
     ORDER.forEach(function (t) {
       var up = [], del = [];
@@ -67,11 +67,16 @@
     // mazání v opačném pořadí (faktury → termíny → … )
     chain = chain.then(function () { var q = delQueue.slice().reverse(); delQueue = []; return q.reduce(function (p, d) { return p.then(function () { return MPDB.remove(d[0], KEYCOL[d[0]], d[1]); }); }, Promise.resolve()); });
     chain.then(function () { last = now; setSync('ok'); })
-      .catch(function (e) { setSync('err'); if (e.status === 401) { sessionStorage.removeItem(SESSION); render(); } toast('Neuloženo do databáze: ' + e.message); })
+      .catch(function (e) { setSync('err', e.message); if (e.status === 401) { sessionStorage.removeItem(SESSION); render(); } toast('Neuloženo do databáze: ' + e.message); })
       .then(function () { syncing = false; if (again) { again = false; cloudSync(); } });
   }
   var delQueue = [];
-  function setSync(st) { var el = document.getElementById('sync'); if (el) { el.textContent = st === 'ok' ? '● uloženo' : '● chyba ukládání'; el.style.color = st === 'ok' ? 'var(--mut)' : '#E7C27D'; } }
+  function syncLabel() { return syncState === 'ok' ? '● uloženo' : syncState === 'busy' ? '● ukládám…' : '● chyba ukládání'; }
+  function setSync(st, msg) {
+    syncState = st; if (st === 'err') syncErr = msg || ''; if (st === 'ok') syncErr = '';
+    var el = document.getElementById('sync'); if (el) { el.textContent = syncLabel(); el.style.color = st === 'err' ? '#E7C27D' : 'var(--mut)'; }
+    var bn = document.getElementById('syncbanner'); if (bn) { bn.hidden = st !== 'err'; bn.querySelector('span').textContent = syncErr; }
+  }
   function cloudLoad() {
     return Promise.all([MPDB.select('clients'), MPDB.select('appointments'), MPDB.select('shifts'), MPDB.select('invoices'), MPDB.select('settings')]).then(function (res) {
       var pw = db.settings.pwHash, us = db.settings.user;
@@ -191,7 +196,8 @@
     var t = today(), upcoming = db.appts.filter(function (a) { return a.date === iso(t) && active(a); }).length;
     $app.innerHTML =
       '<header class="top"><h1>' + title + '<small>' + DNL[t.getDay()] + ' ' + t.getDate() + '. ' + MG[t.getMonth()] + ' · dnes ' + upcoming + ' ' + (upcoming === 1 ? 'termín' : upcoming > 1 && upcoming < 5 ? 'termíny' : 'termínů') + '</small></h1>' +
-      (CLOUD ? '<span id="sync" class="small muted" style="margin-left:auto">● uloženo</span>' : '') + '<a class="btn sm g" href="../" title="Zpět na web">Web</a></header>' +
+      (CLOUD ? '<span id="sync" class="small" style="margin-left:auto;color:' + (syncState === 'err' ? '#E7C27D' : 'var(--mut)') + '">' + syncLabel() + '</span>' : '') + '<a class="btn sm g" href="../" title="Zpět na web">Web</a></header>' +
+      (CLOUD ? '<div id="syncbanner" class="warn" style="margin:12px 16px 0"' + (syncState === 'err' ? '' : ' hidden') + '><b>Neuloženo do databáze.</b> Zkontroluj internet a zkus to znovu. <span class="small">' + esc(syncErr) + '</span> <button class="btn sm" data-act="retrySync">Zkusit znovu</button></div>' : '') +
       '<main>' + body + '</main>' +
       '<nav class="tabs" aria-label="Sekce">' + TABS.map(function (x) { return '<button type="button" data-act="tab" data-v="' + x[0] + '"' + (ui.tab === x[0] ? ' aria-current="page"' : '') + '>' + x[2] + x[1] + '</button>'; }).join('') + '</nav>' +
       (ui.tab === 'cal' ? '<button class="fab" type="button" data-act="newAppt" aria-label="Nový termín">' + I.plus + '</button>' : '') +
@@ -640,6 +646,7 @@
       case 'delAppt': if (confirm('Opravdu smazat termín?')) { db.appts = db.appts.filter(function (x) { return x.id !== v; }); save(); closeSheet(); render(); toast('Termín smazán'); } break;
       case 'invFromAppt': a = db.appts.find(function (x) { return x.id === v; }); closeSheet(); invForm(invFromAppts(a.clientId, [a])); break;
       case 'importSms': importSms(); break;
+      case 'retrySync': cloudSync(); break;
       case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.then(function () { installEvt = null; render(); }); } else installHelp(); break;
       case 'hideInstall': localStorage.setItem('mp_install_hide', '1'); render(); break;
       case 'finMonth': ui.finMonth = ymShift(ui.finMonth, +v); render(); break;

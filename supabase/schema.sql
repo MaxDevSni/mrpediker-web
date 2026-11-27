@@ -126,6 +126,16 @@ begin
   return aid;
 end $$;
 
+-- Směny pro web (jen data a časy, bez osobních údajů).
+drop function if exists public.public_shifts(date, date);
+create or replace function public.public_shifts(d_from date, d_to date)
+returns table (shift_date date, is_on boolean, t_from time, t_to time)
+language sql security definer set search_path = public as $$
+  select s.date, s.is_on, s.t_from, s.t_to from public.shifts s where s.date between d_from and d_to order by s.date;
+$$;
+revoke all on function public.public_shifts from public;
+grant execute on function public.public_shifts to anon, authenticated;
+
 -- Veřejné nastavení pro web: délky služeb a přestávka mezi klienty (bez osobních údajů).
 create or replace function public.public_settings()
 returns jsonb language sql security definer set search_path = public as $$
