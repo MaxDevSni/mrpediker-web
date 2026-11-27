@@ -34,6 +34,15 @@
       st.cfgV = 2;
     }
   }
+  /* Co Míra vidí ve směnách (výchozí pracovní dny), to se uloží – web pak nabízí stejné dny. */
+  function fillAuto() {
+    var ch = false, t0 = today();
+    for (var i = 0; i < 35; i++) {
+      var ds = iso(addDays(t0, i));
+      if (!db.shifts[ds]) { db.shifts[ds] = { on: db.settings.workDays.indexOf(parse(ds).getDay()) > -1, from: db.settings.defFrom, to: db.settings.defTo }; ch = true; }
+    }
+    return ch;
+  }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('Nepodařilo se uložit – plné úložiště?'); } if (CLOUD) cloudSync(); }
 
   /* ---------- Cloud (Supabase) ---------- */
@@ -90,7 +99,10 @@
       db.settings.pwHash = pw; db.settings.user = us;
       try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
       last = snap(rowsOf(db));
-      if (firstRun) { last.settings = {}; cloudSync(); }
+      var filled = fillAuto();
+      if (filled) try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+      if (firstRun) last.settings = {};
+      if (firstRun || filled) cloudSync();
     });
   }
   function uid() {

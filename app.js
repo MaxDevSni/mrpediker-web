@@ -149,17 +149,24 @@
     if (!avail) return TIMES;
     var sh = avail.shifts[ds]; if (!sh || !sh.is_on) return [];
     var dur = (state.service && state.service.dur) || 80, buf = avail.buffer, out = [], busy = avail.busy.filter(function (b) { return b.date === ds; });
-    for (var t = m2(sh.t_from); t + dur <= m2(sh.t_to); t += 15) {
+    var start = m2(sh.t_from), end = m2(sh.t_to), cand = {};
+    for (var t = start; t + dur <= end; t += 15) cand[t] = 1;
+    /* hned po předchozím klientovi + přestávce, ať nepropadá čas mimo čtvrthodiny */
+    busy.forEach(function (b) { var n = m2(b.time) + b.dur + buf; if (n >= start && n + dur <= end) cand[n] = 1; });
+    Object.keys(cand).map(Number).sort(function (x, y) { return x - y; }).forEach(function (t) {
       var clash = busy.some(function (b) { var s = m2(b.time); return t < s + b.dur + buf && s < t + dur + buf; });
       if (!clash) out.push(hm2(t));
-    }
+    });
     return out;
   }
   function drawTimes() {
     var list = state.day ? freeTimes(isoD(state.day)) : (avail ? [] : TIMES);
     timeBox.innerHTML = '';
     if (avail && state.day && !list.length) { timeBox.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">V tento den už není volno – zkuste jiný den.</p>'; return; }
-    if (avail && !state.day) { timeBox.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">Nejdřív vyberte den.</p>'; return; }
+    if (avail && !state.day) {
+      var any = [].some.call(dayBox.children, function (x) { return !x.disabled; });
+      timeBox.innerHTML = '<p class="hint" style="grid-column:1/-1;margin:0">' + (any ? 'Nejdřív vyberte den.' : 'V nejbližších týdnech už bohužel není volný termín. Zavolejte na <a href="tel:+420737307321">737 307 321</a> – zkusíme to domluvit.') + '</p>'; return;
+    }
     list.forEach(function (t) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'time'; b.textContent = t; b.setAttribute('aria-pressed', state.time === t ? 'true' : 'false');
